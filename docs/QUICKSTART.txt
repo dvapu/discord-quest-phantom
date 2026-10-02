@@ -1,0 +1,26 @@
+==================================================================
+ Discord Quest Auto-Completer (Unified Dual-Engine Standalone)
+==================================================================
+
+QUICK START GUIDE:
+
+1. Prerequisite:
+   - Make sure your official Discord Desktop client is open and logged into your account.
+
+2. Configuration:
+   - Copy or rename `.token.example` to `.token`.
+   - Paste your Discord authorization token into `.token`.
+   - Alternatively, you can pass `-token <your_token>` via terminal or set the DISCORD_TOKEN environment variable.
+
+3. Run the application:
+   - On Windows: Run `discord-quest-completer.exe`
+   - On Linux: Run `chmod +x discord-quest-completer && ./discord-quest-completer`
+
+4. Options:
+   - `-dry-run`: View all quests and application resolutions without enrolling or running games.
+   - `-auto-accept=false`: Disable automatic enrollment in newly available quests.
+   - `-poll=60s`: Set custom polling interval.
+
+For more details and source code, visit:
+https://github.com/markterence/discord-quest-completer
+https://github.com/thanhdo1110/Discord-Quest-Auto-Completer

@@ -1,0 +1,139 @@
+<div align="center">
+
+# 👻 Discord Quest Phantom
+### *Autonomous Cross-Platform Quest Completer for Windows & Linux (x64 / ARM64)*
+
+[![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
+[![Build & Release](https://img.shields.io/github/actions/workflow/status/dvapu/discord-quest-phantom/release.yml?style=flat-square)](https://github.com/dvapu/discord-quest-phantom/actions)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20(x64%2C%20ARM64)-blue.svg?style=flat-square)]()
+[![Language](https://img.shields.io/badge/Language-Go%20%7C%20Python-cyan.svg?style=flat-square)]()
+
+---
+
+**🌐 Languages:**  
+[🇺🇸 English](README.md) | [🇻🇳 Tiếng Việt](docs/translations/README.vi.md) | [🇨🇳 简体中文](docs/translations/README.zh.md) | [🇰🇷 한국어](docs/translations/README.ko.md) | [🇯🇵 日本語](docs/translations/README.ja.md) | [🇮🇳 हिन्दी](docs/translations/README.hi.md)
+
+---
+
+</div>
+
+> ### ⚠️ DISCLAIMER
+> **USE AT YOUR OWN RISK.**
+> This software is developed purely for educational, network security, and reverse engineering research purposes. The use of automation tools may violate Discord's Terms of Service (ToS). The authors accept no responsibility or liability for any account warnings, restrictions, or bans resulting from the use of this program.
+
+---
+
+```
+                        ┌──────────────────────────────────────────────┐
+                        │          DISCORD QUEST PHANTOM 👻            │
+                        │    Auto-Scan · Auto-Enroll · Zero-Ban        │
+                        └──────────────────────┬───────────────────────┘
+                                               │
+                        Independent Dual-Engine Architecture
+                                               │
+                ┌──────────────────────────────┴──────────────────────────────┐
+                ▼                                                             ▼
+     [ENGINE 1: AUTONOMOUS RUNNER - DEFAULT]                       [ENGINE 2: WIN32 OS SPOOFER]
+  - Runs ANYWHERE (Windows, Linux, Armbian, VPS)                - Designed for users running Discord Desktop
+  - NO Discord Desktop client required                          - Spawns invisible Win32 dummy game stubs
+  - Automatically bypasses "Choose Platform" popups             - Discord Desktop detects presence & sends Gateway
+  - Scrapes dynamic CDN build numbers with jitter               - Activated with CLI flag: -spoofer
+```
+
+---
+
+## 🎯 Discord Quest Classification Architecture
+
+Discord Quests come in multiple task structures. Discord Quest Phantom categorizes and handles each gracefully:
+
+| Quest Category | Task Type Identifier | Technical Mechanism & Automation Handling | Automated? |
+|---|---|---|:---:|
+| **1. 🖥️ Pure PC Game** | `PLAY_ON_DESKTOP` (PC only) | Auto-heartbeats periodic stream frames (`call:0:<pid>`) every 20s or emulates Win32 process (`-spoofer`). | ✅ 100% Automated |
+| **2. 🎮 Cross-Platform Game** | `PLAY_ON_DESKTOP` + `XBOX` / `PS` | Desktop app forces a "Choose Platform to start" popup. **Phantom bypasses this UI barrier entirely**, reporting stream progress straight into PC playtime! | ✅ 100% Automated |
+| **3. 📺 Desktop Video** | `WATCH_VIDEO` | Progresses video playback timestamps smoothly via `/quests/{id}/video-progress`. Finishes in 10–30s. | ✅ 100% Automated |
+| **4. 📱 Mobile Video** | `WATCH_VIDEO_ON_MOBILE` | Targeted at mobile users. The backend API is identical: **Phantom finishes it without needing any mobile device**! | ✅ 100% Automated |
+| **5. 🏆 In-Game Achievement** | `ACHIEVEMENT_IN_GAME` / `ACHIEVEMENT_IN_ACTIVITY` | Missions like *VALORANT Aces* require real game servers (Riot/EA) to send webhooks to Discord. **Client tools cannot fake in-game kills**; Phantom automatically detects and cleanly skips these. | ⚠️ Skipped (Play manually) |
+
+---
+
+## 🔑 1. How to Retrieve Your Discord Token (F12 DevTools)
+
+### Method 1: Console Tab (Fastest — 1 Line Command)
+1. Open your web browser, navigate to [https://discord.com/app](https://discord.com/app), and log into your account.
+2. Press `F12` (or `Ctrl + Shift + I`) to open Developer Tools → Switch to the **Console** tab.
+3. Paste the snippet below and press `Enter`:
+   ```javascript
+   (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()
+   ```
+4. Your token string will immediately appear (e.g. `NTk5...` or `mfa....`). Copy this string (do not copy the enclosing quotation marks).
+
+### Method 2: Network Tab
+1. In DevTools (`F12`), switch to the **Network** tab and filter by `/api`.
+2. Click on any request (`messages`, `users`, `science`).
+3. In the right panel, scroll down to **Request Headers** and copy the string value of **`authorization:`**.
+
+---
+
+## ⚡ 2. Setup & Execution
+
+### For Windows:
+1. Download `discord-quest-phantom-windows-amd64.zip` from [Releases](https://github.com/dvapu/discord-quest-phantom/releases).
+2. Extract the archive into any folder.
+3. **Double-click `discord-quest-phantom.exe`**:
+   - If `.token` is missing, the program will interactively prompt you to paste your token, save it automatically, and start immediately!
+   - No Python installation needed, no dependencies required, no Discord client needed!
+
+### For Linux / VPS / Armbian / Raspberry Pi (24/7 Background Daemon):
+Run this single command to download the standalone binary and start 24/7 background execution:
+```bash
+mkdir -p ~/discord-quest && cd ~/discord-quest && \
+ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.0.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+chmod +x discord-quest-phantom && \
+echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
+nohup ./discord-quest-phantom > quest.log 2>&1 &
+```
+
+---
+
+## 🛡️ Anti-Ban Security Analysis
+
+* **Never Auto-Claims Rewards**: Phantom **NEVER** calls the claim reward endpoint. It strictly stops at 100% progress so you can open Discord and claim your rewards manually, guaranteeing maximum safety.
+* **Realistic X-Super-Properties**: Base64 encoded client fingerprint matching genuine Discord Desktop x64 builds (`os`, `browser`, `os_version`, `client_version`).
+* **Dynamic CDN Build Number**: Dynamically scrapes the active `client_build_number` from Discord CDN at startup. Never sends outdated build tags.
+* **Randomized Jitter**: Randomized interval delays between heartbeats and video progress events prevent pattern matching.
+
+---
+
+## 📂 Project Structure
+
+```
+discord-quest-phantom/
+├── cmd/
+│   └── completer/main.go       # Core Dual-Engine Orchestrator (API Runner + Spoofer)
+├── pkg/
+│   ├── api/                    # REST Client, CDN Build Scraper, Video & Heartbeat
+│   ├── config/                 # Token resolution & CLI parsing (interactive prompt)
+│   ├── scanner/                # Quest classification, lifecycle coordinator & expiry filter
+│   └── spoofer/                # Win32 GUI message pump & Linux process emulation
+├── docs/
+│   ├── translations/           # Multilingual documentation (VI, ZH, KO, JA, HI)
+│   ├── ARCHITECTURE.md         # In-depth architectural review & risk matrix
+│   └── QUICKSTART.txt          # Minimal setup guide
+├── scripts/
+│   ├── diagnostics/            # Diagnostic and inspection scripts
+│   ├── windows_helpers/        # Windows batch shortcuts
+│   ├── build.ps1               # Windows PowerShell build script
+│   └── build.sh                # Linux Bash build script
+├── main.py                     # Standalone Python runner (Cross-platform)
+├── .gitignore                  # Security filter (blocks token leaks)
+├── LICENSE                     # MIT License
+└── README.md                   # Multilingual project documentation
+```
+
+---
+
+## 📜 License
+
+Distributed under the [MIT License](LICENSE). For educational and network automation research purposes only.
