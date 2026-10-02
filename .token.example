@@ -1,0 +1,7 @@
+# Place your Discord User Authorization Token below and rename this file to .token
+# To obtain your token:
+# 1. Open Discord in your browser (or press Ctrl+Shift+I in the Discord Desktop client)
+# 2. Go to Network tab, filter by "/api"
+# 3. Trigger any action, inspect request headers, copy the value of "Authorization"
+# 4. Paste the 70-character token on a single line in this file (without quotes or prefixes)
+YOUR_DISCORD_TOKEN_HERE

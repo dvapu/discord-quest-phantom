@@ -1,0 +1,38 @@
+# Secret credentials - NEVER COMMIT!
+.token
+*.token
+token.txt
+*.log
+
+# Agent workspaces & scratch files
+.agents/
+.gemini/
+scratch/
+materials/
+raw_materials/
+inspect_*.py
+check_*.py
+list_*.py
+find_*.py
+extract_*.py
+search_*.py
+active_*.py
+
+# Binaries & executables
+*.exe
+*.dll
+*.so
+*.dylib
+discord-quest-completer
+discord-quest-completer.exe
+
+# Build distribution folders
+dist/
+build/
+tmp/
+temp_games/
+games/
+
+# OS specific files
+.DS_Store
+Thumbs.db

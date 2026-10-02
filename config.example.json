@@ -1,0 +1,14 @@
+{
+  "token": "",
+  "token_file": ".token",
+  "log_level": "info",
+  "auto_enroll": true,
+  "poll_interval_seconds": 60,
+  "jitter_percentage": 0.15,
+  "discord_rpc_check": true,
+  "spoofer": {
+    "stub_cache_dir": "",
+    "enable_gui_window": true,
+    "memory_padding_mb": 256
+  }
+}
