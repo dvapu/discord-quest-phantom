@@ -60,6 +60,7 @@
 ### Cách 1: Qua Tab Console (1 Dòng Lệnh Duy Nhất — Nhanh Nhất)
 1. Mở trình duyệt truy cập [https://discord.com/app](https://discord.com/app) và đăng nhập tài khoản của bạn.
 2. Nhấn `F12` (hoặc `Ctrl + Shift + I`) → Chuyển sang tab **Console**.
+   > 💡 **Lưu ý bảo mật (Self-XSS)**: Nếu trình duyệt chặn dán mã và hiện thông báo đỏ/cảnh báo, hãy gõ chính xác dòng chữ: `allow pasting` vào Console rồi nhấn `Enter` để mở khóa tính năng dán (Ctrl + V).
 3. Dán đoạn mã sau vào và nhấn `Enter`:
    ```javascript
    (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()

@@ -62,6 +62,7 @@ Discord Quests come in multiple task structures. Discord Quest Phantom categoriz
 ### Method 1: Console Tab (Fastest — 1 Line Command)
 1. Open your web browser, navigate to [https://discord.com/app](https://discord.com/app), and log into your account.
 2. Press `F12` (or `Ctrl + Shift + I`) to open Developer Tools → Switch to the **Console** tab.
+   > 💡 **Console Paste Protection (Self-XSS)**: If your browser blocks pasting with a warning, type `allow pasting` into the Console and press `Enter` first to unlock pasting.
 3. Paste the snippet below and press `Enter`:
    ```javascript
    (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()

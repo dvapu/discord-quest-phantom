@@ -40,6 +40,7 @@
 
 1. 在浏览器中打开 [https://discord.com/app](https://discord.com/app) 并登录。
 2. 按 `F12` 打开开发者工具，切换到 **控制台 (Console)** 标签页。
+   > 💡 **控制台粘贴保护 (Self-XSS)**：如果浏览器/控制台拦截粘贴并提示安全警告，请先在控制台中直接输入 `allow pasting` 并按回车（`Enter`）解锁粘贴权限。
 3. 粘贴以下代码并按回车：
    ```javascript
    (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()

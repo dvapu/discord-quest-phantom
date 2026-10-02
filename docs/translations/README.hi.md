@@ -40,6 +40,7 @@
 
 1. अपने ब्राउज़र में [https://discord.com/app](https://discord.com/app) खोलें और लॉगिन करें।
 2. `F12` दबाएं और **Console** टैब पर जाएं।
+   > 💡 **कंसोल पेस्ट सुरक्षा (Self-XSS)**: यदि आपका ब्राउज़र सुरक्षा चेतावनी के साथ कोड पेस्ट करने से रोकता है, तो पहले कंसोल में `allow pasting` टाइप करें और `Enter` दबाएं ताकि पेस्ट करने की अनुमति मिल सके।
 3. यह कोड पेस्ट करें और `Enter` दबाएं:
    ```javascript
    (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()

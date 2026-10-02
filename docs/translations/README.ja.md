@@ -40,6 +40,7 @@
 
 1. ブラウザで [https://discord.com/app](https://discord.com/app) にアクセスしてログインします。
 2. `F12` キーを押して開発者ツールを開き、**Console** タブに切り替えます。
+   > 💡 **コンソールの貼り付け保護 (Self-XSS)**: ブラウザのコンソールでコードの貼り付けがブロックされる場合は、まずコンソールに `allow pasting` と入力して `Enter` キーを押してロックを解除してください。
 3. 以下のコードを貼り付けて `Enter` を押します:
    ```javascript
    (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()
