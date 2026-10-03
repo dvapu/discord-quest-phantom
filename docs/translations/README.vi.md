@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.0
+# 👻 Discord Quest Phantom v1.1.1
 ### *Công cụ tự động hoàn thành Discord Quest đa nền tảng cho Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -26,7 +26,7 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.0           │
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.1           │
                         │   Quét Đa Vùng · Chạy Song Song · Cổng Giải Captcha    │
                         └───────────────────────────┬────────────────────────────┘
                                                     │
@@ -53,11 +53,11 @@
 
 ---
 
-## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.0
+## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.1
 
-1. **🌍 Quét Đa Vùng Tự Động (`--region all`)**:
+1. **🌍 Quét Đa Vùng Bộ Ba Vàng Tự Động (`--region all`)**:
    - Khắc phục triệt để tình trạng nhiệm vụ và khung viền Avatar bị ẩn tại Việt Nam.
-   - Phantom tự động giả lập định danh vùng (`en-US`, `ja-JP`, `vi-VN`) giúp gom toàn bộ nhiệm vụ toàn cầu về danh sách, hoàn thành mọi nhiệm vụ độc quyền không cần cắm VPN!
+   - Phantom tự động quét song song bộ ba vàng (`en-US`, `ja-JP`, `vi-VN`) giúp gom toàn bộ nhiệm vụ toàn cầu về danh sách, hoàn thành mọi nhiệm vụ độc quyền không cần cắm VPN!
 2. **⚡ Chạy Song Song 2–5 Game/Nhiệm Vụ (`-concurrency 5`)**:
    - Thay vì chạy tuần tự tốn 15p x 5 = 75 phút, Phantom hỗ trợ **xử lý song song tối đa 5 quest cùng một lúc** với luồng heartbeat độc lập. Hoàn thành 5 game chỉ vỏn vẹn trong **15 phút**!
 3. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
@@ -114,7 +114,7 @@ Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build 
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.1/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &

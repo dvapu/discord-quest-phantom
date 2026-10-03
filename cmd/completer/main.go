@@ -23,7 +23,7 @@ import (
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
-var Version = "1.1.0"
+var Version = "1.1.1"
 
 func main() {
 	cfg, err := config.LoadConfig()
@@ -135,12 +135,8 @@ func main() {
 	}
 }
 
-func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client) {
-	// 4. Discover Quests (with Multi-Region / Locale Sweep)
-	var rawQuests []api.Quest
-	var err error
+func fetchQuests(ctx context.Context, cfg *config.Config, apiClient *api.Client) ([]api.Quest, error) {
 	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
-		fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
 		var regions []string
 		for _, r := range strings.Split(cfg.Region, ",") {
 			rTrim := strings.TrimSpace(r)
@@ -148,17 +144,26 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 				regions = append(regions, rTrim)
 			}
 		}
-		rawQuests, err = apiClient.FetchQuestsMultiRegion(ctx, regions)
-		if err == nil {
-			fmt.Printf(i18n.M().RegionScanDone, len(rawQuests))
-		}
+		return apiClient.FetchQuestsMultiRegion(ctx, regions)
+	}
+	return apiClient.FetchQuests(ctx)
+}
+
+func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client) {
+	// 4. Discover Quests (with Multi-Region / Locale Sweep)
+	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
+		fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
 	} else {
 		fmt.Println(i18n.M().DiscoveringQuests)
-		rawQuests, err = apiClient.FetchQuests(ctx)
 	}
+
+	rawQuests, err := fetchQuests(ctx, cfg, apiClient)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, i18n.M().FailedRetrieveQuests, err)
 		return
+	}
+	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
+		fmt.Printf(i18n.M().RegionScanDone, len(rawQuests))
 	}
 
 	analyzedQuests := scanner.AnalyzeAll(rawQuests)
@@ -173,7 +178,7 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 		} else if enrolled > 0 {
 			fmt.Printf(i18n.M().AutoEnrollSuccess, enrolled)
 			fmt.Println(i18n.M().AutoEnrollRefresh)
-			rawQuests, err = apiClient.FetchQuests(ctx)
+			rawQuests, err = fetchQuests(ctx, cfg, apiClient)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, i18n.M().FailedRefreshQuests, err)
 				return
