@@ -353,6 +353,11 @@ class QuestAutocompleter:
                     log(f"Đã nhận: {Colors.BOLD}{name}{Colors.RESET}", "ok")
                     return True
 
+                if r.status_code == 400 and "captcha" in r.text.lower():
+                    log(f"[⚠️ CAPTCHA] Discord yêu cầu xác minh người thật cho quest \"{name}\" ({qid})!", "warn")
+                    log(f"  👉 Mở trực tiếp trên app/web Discord để bấm nhận: https://discord.com/quests/{qid}", "info")
+                    return False
+
                 log(f"Enroll \"{name}\" thất bại ({r.status_code}): {r.text[:200]}", "warn")
                 return False
 
@@ -638,7 +643,8 @@ class QuestAutocompleter:
 def main():
     print(f"""
 {Colors.BOLD}{Colors.CYAN}╔══════════════════════════════════════════════╗
-║     Discord Quest Auto-Completer.            ║
+║        Discord Quest Auto-Completer          ║
+║   Auto-Scan · Auto-Enroll · Auto-Complete    ║
 ║  Auto quét · Auto nhận · Auto hoàn thành     ║
 ╚══════════════════════════════════════════════╝{Colors.RESET}
 """)
@@ -648,12 +654,12 @@ def main():
     elif os.path.exists(".token"):
         with open(".token", "r") as f:
             token = f.read().strip()
-        log("Đọc token từ file .token", "info")
+        log("Đọc token từ file .token / Read token from .token", "info")
     else:
-        token = input(f"{Colors.BOLD}Nhập Discord Token: {Colors.RESET}").strip()
+        token = input(f"{Colors.BOLD}Enter Discord Token / Nhập Discord Token: {Colors.RESET}").strip()
 
     if not token:
-        log("Token trống – thoát.", "error")
+        log("Token is empty / Token trống – exiting.", "error")
         sys.exit(1)
 
     build_number = fetch_latest_build_number()

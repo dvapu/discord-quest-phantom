@@ -23,6 +23,7 @@ type Quest struct {
 	UserStatus            *UserStatus  `json:"user_status"`
 	TrafficMetadataRaw    *string      `json:"traffic_metadata_raw"`
 	TrafficMetadataSealed *string      `json:"traffic_metadata_sealed"`
+	DiscoveredRegion      string       `json:"discovered_region,omitempty"`
 }
 
 // QuestConfig contains campaign metadata, timeframes, and task specifications.
@@ -96,6 +97,33 @@ type EnrollPayload struct {
 	MetadataSealed        *string `json:"metadata_sealed"`
 	TrafficMetadataRaw    *string `json:"traffic_metadata_raw"`
 	TrafficMetadataSealed *string `json:"traffic_metadata_sealed"`
+	CaptchaKey            *string `json:"captcha_key,omitempty"`
+	CaptchaRqtoken        *string `json:"captcha_rqtoken,omitempty"`
+}
+
+// CaptchaRequiredError represents an HTTP 400 with Discord captcha challenge.
+type CaptchaRequiredError struct {
+	QuestID        string `json:"quest_id"`
+	CaptchaKey     string `json:"captcha_key"`
+	CaptchaService string `json:"captcha_service"`
+	CaptchaSitekey string `json:"captcha_sitekey"`
+	CaptchaRqdata  string `json:"captcha_rqdata,omitempty"`
+	CaptchaRqtoken string `json:"captcha_rqtoken,omitempty"`
+}
+
+func (e *CaptchaRequiredError) Error() string {
+	return "captcha verification required by Discord for quest " + e.QuestID
+}
+
+// DiscordCaptchaResponse parses error responses that include captcha requirements.
+type DiscordCaptchaResponse struct {
+	Message        string   `json:"message"`
+	Code           int      `json:"code"`
+	CaptchaKey     []string `json:"captcha_key"`
+	CaptchaSitekey string   `json:"captcha_sitekey"`
+	CaptchaService string   `json:"captcha_service"`
+	CaptchaRqdata  string   `json:"captcha_rqdata"`
+	CaptchaRqtoken string   `json:"captcha_rqtoken"`
 }
 
 // RateLimitResponse parses HTTP 429 JSON payload.

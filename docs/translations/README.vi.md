@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom
+# 👻 Discord Quest Phantom v1.1.0
 ### *Công cụ tự động hoàn thành Discord Quest đa nền tảng cho Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -25,21 +25,47 @@
 ---
 
 ```
-                        ┌──────────────────────────────────────────────┐
-                        │          DISCORD QUEST PHANTOM 👻            │
-                        │    Auto-Scan · Auto-Enroll · Zero-Ban        │
-                        └──────────────────────┬───────────────────────┘
-                                               │
-                        Lựa Chọn Chế Độ Hoạt Động Độc Lập
-                                               │
-                ┌──────────────────────────────┴──────────────────────────────┐
-                ▼                                                             ▼
-     [CHẾ ĐỘ 1: AUTONOMOUS RUNNER - MẶC ĐỊNH]                      [CHẾ ĐỘ 2: WIN32 OS SPOOFER]
-  - Chạy BẤT KỲ ĐÂU (Windows, Linux, Armbian, VPS)              - Dành cho người muốn mở Discord Desktop
-  - KHÔNG CẦN mở ứng dụng Discord Desktop                       - Tạo cửa sổ tiến trình giả lập game thật
-  - TỰ ĐỘNG BỎ QUA POPUP "Chọn nền tảng để bắt đầu"             - Discord Desktop tự nhận diện & gửi Gateway
-  - Cào build number mới nhất, gửi heartbeat có jitter          - Kích hoạt bằng cờ: -spoofer
+                        ┌────────────────────────────────────────────────────────┐
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.0           │
+                        │   Quét Đa Vùng · Chạy Song Song · Cổng Giải Captcha    │
+                        └───────────────────────────┬────────────────────────────┘
+                                                    │
+                                     Bộ Điều Phối Trung Tâm
+                                                    │
+                ┌───────────────────────────────────┼───────────────────────────────────┐
+                ▼                                   ▼                                   ▼
+    [1. QUÉT ĐA VÙNG (MULTI-REGION)]    [2. CHẠY SONG SONG (PARALLEL)]        [3. CỔNG CAPTCHA NỘI BỘ]
+  - Quét đồng thời US, JP và VN      - Chạy đồng thời 2-5 quest           - Tự dò IP LAN & tự đổi port
+  - Giả lập X-Super-Properties       - Tạo độ trễ ngẫu nhiên (Jitter)     - 1 chạm trên điện thoại iPhone
+  - Mở khóa khung avatar bị ẩn       - Hoàn thành 5 game trong 15 phút!   - Cứu cánh server SSH Linux
+                │                                   │                                   │
+                └───────────────────────────────────┴───────────────────────────────────┘
+                                                    │
+                                  2 Động Cơ Thực Thi Độc Lập
+                                                    │
+                ┌───────────────────────────────────┴───────────────────────────────────┐
+                ▼                                                                       ▼
+   [ĐỘNG CƠ 1: AUTONOMOUS API RUNNER - MẶC ĐỊNH]                           [ĐỘNG CƠ 2: WIN32 OS SPOOFER]
+  - Chạy Headless (Windows, Linux, Armbian, VPS)                        - Dành cho người muốn mở Discord Desktop
+  - KHÔNG CẦN mở app Discord hay trình duyệt                            - Tạo đồng thời nhiều game ảo song song
+  - Tự động bỏ qua popup chọn nền tảng game                             - Discord Desktop nhận diện gửi Gateway
 ```
+
+---
+
+## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.0
+
+1. **🌍 Quét Đa Vùng Tự Động (`--region all`)**:
+   - Khắc phục triệt để tình trạng nhiệm vụ và khung viền Avatar bị ẩn tại Việt Nam.
+   - Phantom tự động giả lập định danh vùng (`en-US`, `ja-JP`, `vi-VN`) giúp gom toàn bộ nhiệm vụ toàn cầu về danh sách, hoàn thành mọi nhiệm vụ độc quyền không cần cắm VPN!
+2. **⚡ Chạy Song Song 2–5 Game/Nhiệm Vụ (`-concurrency 5`)**:
+   - Thay vì chạy tuần tự tốn 15p x 5 = 75 phút, Phantom hỗ trợ **xử lý song song tối đa 5 quest cùng một lúc** với luồng heartbeat độc lập. Hoàn thành 5 game chỉ vỏn vẹn trong **15 phút**!
+3. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
+   - Khi chạy trên server Linux/Armbian 24/7 (`192.168.1.200`) qua SSH không có màn hình:
+   - Nếu Discord bắt xác minh người thật, Phantom tự mở cổng web nội bộ `http://<IP_MAY>:8080` (tự động đổi port nếu bị trùng).
+   - Bạn chỉ cần dùng điện thoại iPhone đang kết nối WiFi nhà, bấm vào link xác minh 1 giây là server tự động tiếp tục cày nhiệm vụ!
+4. **🔄 Tự Động Kiểm Tra Bản Cập Nhật**:
+   - Kết nối về GitHub `dvapu/discord-quest-phantom` khi khởi động để báo khi có bản phát hành mới.
 
 ---
 
@@ -58,52 +84,126 @@
 ## 🔑 1. Hướng Dẫn Lấy Discord Token Bằng F12 DevTools
 
 ### Cách 1: Qua Tab Console (1 Dòng Lệnh Duy Nhất — Nhanh Nhất)
-1. Mở trình duyệt truy cập [https://discord.com/app](https://discord.com/app) và đăng nhập tài khoản của bạn.
-2. Nhấn `F12` (hoặc `Ctrl + Shift + I`) → Chuyển sang tab **Console**.
-   > 💡 **Lưu ý bảo mật (Self-XSS)**: Nếu trình duyệt chặn dán mã và hiện thông báo đỏ/cảnh báo, hãy gõ chính xác dòng chữ: `allow pasting` vào Console rồi nhấn `Enter` để mở khóa tính năng dán (Ctrl + V).
-3. Dán đoạn mã sau vào và nhấn `Enter`:
+1. Mở trình duyệt web bất kỳ, truy cập vào [https://discord.com/app](https://discord.com/app) và đăng nhập vào tài khoản của bạn.
+2. Nhấn phím `F12` (hoặc `Ctrl + Shift + I`) để mở Developer Tools → Chuyển sang tab **Console**.
+   > 💡 **Cảnh báo chống dán mã lạ (Self-XSS)**: Nếu Discord hiện thông báo đỏ chặn thao tác Paste, hãy gõ dòng chữ `allow pasting` vào Console rồi nhấn `Enter` để mở khóa.
+3. Dán dòng mã sau vào Console và nhấn `Enter`:
    ```javascript
    (() => { let t = null; webpackChunkdiscord_app.push([[Math.random().toString()], {}, e => { if (e?.c) Object.values(e.c).forEach(m => { ['default', ...Object.keys(m?.exports || {})].forEach(k => { try { const v = m?.exports?.[k]?.getToken?.(); if (typeof v === 'string' && v.length > 20) t = v; } catch(err){} }); }); }]); return t; })()
    ```
-4. Chuỗi token Discord của bạn sẽ xuất hiện ngay lập tức (dạng `NTk5...` hoặc `mfa....`). Hãy copy chuỗi này (không lấy dấu ngoặc kép).
+4. Chuỗi Discord Token của bạn sẽ lập tức hiển thị ra màn hình (dạng `NTk5...` hoặc `mfa....`). Hãy copy chuỗi này (không copy dấu ngoặc kép).
 
 ### Cách 2: Qua Tab Network
-1. Trong DevTools (`F12`), chuyển sang tab **Network** và gõ filter: `/api`.
-2. Bấm vào bất kỳ request nào (`messages`, `users`, `science`).
-3. Nhìn cột bên phải kéo xuống mục **Request Headers** → Copy toàn bộ chuỗi ở dòng `authorization:`.
+1. Trong cửa sổ `F12`, chuyển sang tab **Network** và gõ `/api` vào ô Filter.
+2. Nhấn vào bất kỳ request nào xuất hiện trong danh sách.
+3. Ở khung bên phải, kéo xuống phần **Request Headers** và sao chép toàn bộ giá trị tại dòng **`authorization:`**.
 
 ---
 
-## ⚡ 2. Hướng Dẫn Cài Đặt & Sử Dụng
+## ⚡ 2. Hướng Dẫn Cài Đặt & Khởi Chạy
 
-### Dành cho Windows:
-1. Tải file zip `discord-quest-phantom-windows-amd64.zip` từ trang [Releases](../../releases).
-2. Giải nén vào một thư mục bất kỳ.
-3. **Nhấp đúp chuột chạy file `discord-quest-phantom.exe`**:
-   - Nếu chưa có file `.token`, chương trình sẽ hỏi bạn dán token trực tiếp trên màn hình console, tự động lưu file `.token` và chạy ngay!
-   - Không cần cài đặt Python, không cần cài thư viện, không cần mở ứng dụng Discord Desktop!
+### Cho Người Dùng Windows:
+1. Tải bản nén `discord-quest-phantom-windows-amd64.zip` từ mục [Releases](https://github.com/dvapu/discord-quest-phantom/releases).
+2. Giải nén vào thư mục bất kỳ.
+3. Nhấp đúp vào `run.cmd` hoặc `discord-quest-phantom.exe`:
+   - Nếu chưa có file `.token`, chương trình sẽ tự động mở hộp thoại yêu cầu bạn dán token và tự động lưu.
+   - Không cần cài Python, không phụ thuộc Discord Desktop!
 
-### Dành cho Linux / VPS / Armbian (24/7 Daemon):
-Chạy 1 dòng lệnh duy nhất để tải bản binary độc lập và chạy nền 24/7:
+### Cho Người Dùng Linux / VPS / Armbian / Raspberry Pi (Chạy Ngầm 24/7):
+Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build tĩnh phù hợp với kiến trúc CPU và chạy ngầm liên tục:
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.0.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
-echo "PASTE_TOKEN_CỦA_BẠN_VÀO_ĐÂY" > .token && \
-nohup ./discord-quest-phantom > quest.log 2>&1 &
+echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
+nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &
+```
+
+#### Thiết Lập Dịch Vụ Systemd (Tự Khởi Động Khi Bật Máy):
+Tạo file `/etc/systemd/system/discord-quest-phantom.service`:
+```ini
+[Unit]
+Description=Discord Quest Phantom Autonomous Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/discord-quest-phantom
+ExecStart=/opt/discord-quest-phantom/discord-quest-phantom -daemon -poll 15m -portal=false -concurrency 5 -region all -lang vi
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+Sau đó bật và chạy dịch vụ:
+```bash
+systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
 
 ---
 
-## 🛡️ Phân Tích An Toàn / Anti-Ban Risk Analysis
+## ⚙️ Các Tham Số Dòng Lệnh (CLI Flags)
 
-* **Tuyệt Đối Không Tự Nhận Thưởng (Claim Reward)**: Tool chỉ hoàn thành thanh tiến độ thời gian (100%). Người dùng tự mở Discord bấm nhận thưởng để đảm bảo an toàn tối đa cho tài khoản.
-* **X-Super-Properties Fingerprinting**: Giả lập trọn vẹn Client Electron x64 thật (`os`, `browser`, `os_version`, `client_version`).
-* **Cào Build Number Động**: Tự động kết nối CDN Discord lấy `client_build_number` mới nhất ngay khi chạy.
-* **Jitter Ngẫu Nhiên**: Thêm biến thiên thời gian ngẫu nhiên giữa các lần gửi heartbeat và video progress, chống quét mẫu lặp tự động.
+| Cờ Lệnh | Mặc Định | Ý Nghĩa / Chức Năng |
+|---|---|---|
+| `-region` | `all` | Khu vực quét: `all` (Bộ Ba Vàng: US+JP+VN), `us`, `jp`, `vn` |
+| `-concurrency` | `5` | Số lượng quest chạy song song tối đa (1–5) |
+| `-daemon` | `false` | Chạy nền 24/7 như dịch vụ hệ thống, quét định kỳ tự động |
+| `-poll` | `60s` | Khoảng thời gian giãn cách giữa các lần quét khi bật daemon (vd: `15m`, `30m`) |
+| `-portal` | `true` | Bật cổng giải Captcha qua web nội bộ (`false` để chạy nền âm thầm không mở port) |
+| `-portal-port` | `8080` | Cổng web giải Captcha (tự động tăng nếu bị trùng) |
+| `-spoofer` | `false` | Bật chế độ giả lập tiến trình game (cần mở Discord Desktop) |
+| `-lang` | `auto` | Ngôn ngữ giao diện: `auto`, `vi`, `en` |
+| `-dry-run` | `false` | Chỉ quét và hiển thị danh sách quest, không gửi lệnh cày |
+| `-token` | `""` | Truyền trực tiếp Discord token qua tham số |
+
+---
+
+## 🛡️ Phân Tích An Toàn & Cơ Chế Chống Ban (Anti-Ban)
+
+* **Không Bao Giờ Tự Động Nhận Thưởng (Zero Auto-Claim)**: Phantom chỉ làm nhiệm vụ đạt 100% tiến độ và dừng lại, để bạn vào Discord bấm **Claim Reward** bằng tay trong phần Kho Quà Tặng. Đây là nguyên tắc cốt lõi giúp 100% tài khoản an toàn tuyệt đối trước các đợt quét bot.
+* **Định Danh Trình Duyệt Thực Tế (X-Super-Properties)**: Gói tin chứa fingerprint chuẩn của Discord Desktop x64 (`os`, `browser`, `os_version`, `client_version`).
+* **Cào Build Number Động Từ Discord CDN**: Luôn cào build number mới nhất của Discord mỗi khi khởi động, không bao giờ dùng build lỗi thời.
+* **Thời Gian Ngẫu Nhiên (Jitter Delay)**: Mọi khoảng thời gian gửi heartbeat và video timestamp đều được cộng thêm độ trễ ngẫu nhiên để tránh bị phát hiện theo chu kỳ máy móc bay pattern.
+
+---
+
+## 📂 Cấu Trúc Mã Nguồn
+
+```
+discord-quest-phantom/
+├── cmd/
+│   └── completer/main.go       # Bộ điều phối trung tâm (Parallel Runner + Spoofer)
+├── pkg/
+│   ├── api/                    # Discord REST Client, cào CDN Build, Video & Heartbeat
+│   ├── captcha/                # Cổng web giải Captcha mạng LAN nội bộ
+│   ├── config/                 # Quản lý cấu hình & nhận diện Token tự động
+│   ├── i18n/                   # Hệ thống dịch thuật song ngữ (Việt - Anh) 0 dependency
+│   ├── scanner/                # Phân loại trạng thái quest & điều phối chu kỳ
+│   ├── spoofer/                # Giả lập tiến trình game Win32 & Linux /proc
+│   └── updater/                # Kiểm tra cập nhật tự động từ GitHub Releases
+├── docs/
+│   ├── translations/           # Tài liệu đa ngôn ngữ (VI, ZH, KO, JA, HI)
+│   ├── ARCHITECTURE.md         # Phân tích kiến trúc chuyên sâu & ma trận an toàn
+│   └── QUICKSTART.txt          # Hướng dẫn nhanh rút gọn
+├── scripts/
+│   ├── diagnostics/            # Bộ kịch bản chẩn đoán dữ liệu Discord Quest
+│   ├── windows_helpers/        # Phím tắt batch tiện ích cho Windows
+│   ├── build.ps1               # Script build tự động trên Windows PowerShell
+│   └── build.sh                # Script build tự động trên Linux Bash
+├── main.py                     # Bản chạy Python độc lập (Đa nền tảng)
+├── run.cmd                     # Kịch bản khởi chạy 1 chạm cho Windows
+├── setup_token.cmd             # Hỗ trợ cài đặt token cho Windows
+├── .gitignore                  # Bộ lọc an toàn (chống lộ token & mã độc)
+├── LICENSE                     # Giấy phép MIT License
+└── README.md                   # Tài liệu chính của dự án
+```
 
 ---
 
 ## 📜 Giấy Phép (License)
-Phát hành theo giấy phép [MIT License](../../LICENSE). Dành cho mục đích giáo dục và nghiên cứu tự động hóa giao thức.
+
+Phát hành dưới giấy phép mã nguồn mở [MIT License](../../LICENSE). Phục vụ cho mục đích học tập và nghiên cứu giao thức mạng.

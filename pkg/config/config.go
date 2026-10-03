@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"discord-quest-completer/pkg/i18n"
 )
 
 // Config represents the application runtime configuration.
@@ -25,6 +27,12 @@ type Config struct {
 	Duration     time.Duration
 	UseSpoofer   bool
 	KeepOpen     bool
+	Lang         string
+	Region       string
+	EnablePortal bool
+	PortalPort   int
+	Concurrency  int
+	Daemon       bool
 }
 
 // MaskToken returns a safe, redacted representation of the Discord token for logs.
@@ -88,8 +96,8 @@ func ResolveToken(cliToken string) (string, error) {
 
 	// Interactive Console Prompt: Ask user to paste token if not found
 	fmt.Println("==================================================================")
-	fmt.Println(" [!] CHƯA TÌM THẤY DISCORD TOKEN!")
-	fmt.Println(" [!] Vui lòng dán (Paste) Discord Token của bạn vào đây:")
+	fmt.Println(" [!] DISCORD TOKEN NOT FOUND / CHƯA TÌM THẤY DISCORD TOKEN!")
+	fmt.Println(" [!] Please paste your Discord Token below / Dán Token vào đây:")
 	fmt.Println("==================================================================")
 	fmt.Print(" > Token: ")
 	reader := bufio.NewReader(os.Stdin)
@@ -102,12 +110,12 @@ func ResolveToken(cliToken string) (string, error) {
 				targetFile = filepath.Join(exeDir, ".token")
 			}
 			_ = os.WriteFile(targetFile, []byte(token), 0600)
-			fmt.Printf("[+] Đã lưu token vào file %s thành công!\n\n", targetFile)
+			fmt.Printf(i18n.M().TokenSaved, targetFile)
 			return token, nil
 		}
 	}
 
-	return "", fmt.Errorf("không có Discord token hợp lệ. Vui lòng cung cấp qua file .token hoặc cờ -token")
+	return "", fmt.Errorf("%s", i18n.M().TokenError)
 }
 
 // LoadConfig parses command-line arguments and constructs the active Config.
@@ -129,12 +137,21 @@ func LoadConfig() (*Config, error) {
 	flag.DurationVar(&cfg.Duration, "duration", 0, "Override maximum spoofing duration (e.g. 15m, 30s; 0 for full quest requirement)")
 	flag.BoolVar(&cfg.UseSpoofer, "spoofer", false, "Enable OS Process Spoofer mode (requires Discord Desktop running)")
 	flag.BoolVar(&cfg.KeepOpen, "keep-open", true, "Wait for keypress before exiting (prevents instant window closing on double-click)")
+	flag.StringVar(&cfg.Lang, "lang", "auto", "Language / Ngôn ngữ (auto, en, vi)")
+	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (US+JP+VN), us, jp, vn")
+	flag.BoolVar(&cfg.EnablePortal, "portal", true, "Enable local captcha web portal for headless environments")
+	flag.IntVar(&cfg.PortalPort, "portal-port", 8080, "Port for local captcha web portal")
+	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")
+	flag.BoolVar(&cfg.Daemon, "daemon", false, "Run continuously as a background daemon/service, re-checking quests periodically")
 
 	// Internal stub mode flags (used when spawned as a spoofed game process)
 	flag.BoolVar(&cfg.RunStub, "stub", false, "Internal stub mode: run as dummy game process")
 	flag.StringVar(&cfg.StubTitle, "title", "Discord Game Stub", "Window title / game name for stub process")
 
 	flag.Parse()
+
+	// Initialize i18n system according to CLI flag, env, or OS locale
+	i18n.InitLanguage(cfg.Lang)
 
 	// If in internal stub mode, token resolution is not required
 	if cfg.RunStub {

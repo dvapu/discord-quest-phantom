@@ -8,17 +8,22 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"discord-quest-completer/pkg/api"
+	"discord-quest-completer/pkg/captcha"
 	"discord-quest-completer/pkg/config"
+	"discord-quest-completer/pkg/i18n"
 	"discord-quest-completer/pkg/scanner"
 	"discord-quest-completer/pkg/spoofer"
+	"discord-quest-completer/pkg/updater"
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
-var Version = "1.0.0"
+var Version = "1.1.0"
 
 func main() {
 	cfg, err := config.LoadConfig()
@@ -47,10 +52,20 @@ func main() {
 	// Main Orchestrator Execution
 	printBanner()
 
+	// Check for GitHub updates (non-blocking with quick 2s timeout)
+	updateCtx, updateCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if rel, hasUpdate := updater.CheckUpdate(updateCtx, Version); hasUpdate && rel != nil {
+		fmt.Println(i18n.M().UpdateAvailableBanner)
+		fmt.Printf(i18n.M().UpdateAvailableDetails, rel.TagName, rel.HTMLURL)
+	}
+	updateCancel()
+
 	fmt.Printf("[+] OS: %s | Arch: %s | CPU Cores: %d\n", runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
+	fmt.Printf("[+] Language: %s (Auto-detected / Configured)\n", i18n.GetLanguage())
 	fmt.Printf("[+] Loaded token: %s\n", config.MaskToken(cfg.Token))
 	fmt.Printf("[+] Mode: %s\n", getModeString(cfg))
-	fmt.Printf("[+] Polling Interval: %v | Auto-Enroll: %t\n", cfg.PollInterval, cfg.AutoAccept)
+	fmt.Printf("[+] Polling Interval: %v | Auto-Enroll: %t | Concurrency: %d\n", cfg.PollInterval, cfg.AutoAccept, cfg.Concurrency)
+	fmt.Printf("[+] Region Sweep: %s | Captcha Portal: %t (Port: %d)\n", cfg.Region, cfg.EnablePortal, cfg.PortalPort)
 	if cfg.QuestID != "" {
 		fmt.Printf("[+] Targeted Quest ID: %s\n", cfg.QuestID)
 	}
@@ -58,22 +73,33 @@ func main() {
 		fmt.Printf("[+] Max Session Duration: %v\n", cfg.Duration)
 	}
 
+	// Initialize Persistent Web UI & Captcha Portal (if enabled)
+	if cfg.EnablePortal {
+		p, err := captcha.StartBackgroundPortal(cfg.PortalPort)
+		if err == nil && p != nil {
+			fmt.Printf("\n========================================================================\n")
+			fmt.Printf(" [🌐] Local Web UI & Captcha Portal: %s\n", p.URL())
+			fmt.Printf("      Dashboard & Test URL: %s/test\n", p.URL())
+			fmt.Printf("========================================================================\n")
+		}
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	// 1. Fetch Latest Client Build Number dynamically from Discord CDN
-	fmt.Println("\n[*] Scraping latest Discord client_build_number from CDN...")
+	fmt.Println(i18n.M().ScrapingCDN)
 	buildNumber := api.FetchLatestBuildNumber()
-	fmt.Printf("[+] Active Build Number: %d\n", buildNumber)
+	fmt.Printf(i18n.M().ActiveBuild, buildNumber)
 
 	// 2. Initialize API Client
 	apiClient := api.NewClient(cfg.Token, buildNumber)
 
 	// 3. Authenticate & Retrieve Account Identity
-	fmt.Println("\n[*] Authenticating with Discord API (GET /api/v9/users/@me)...")
+	fmt.Println(i18n.M().Authenticating)
 	user, err := apiClient.ValidateToken(ctx)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[-] Authentication failed: %v\n", err)
+		fmt.Fprintf(os.Stderr, i18n.M().AuthFailed, err)
 		return
 	}
 
@@ -81,17 +107,57 @@ func main() {
 	if user.GlobalName != nil {
 		globalName = *user.GlobalName
 	}
-	fmt.Printf("[+] Authentication Successful!\n")
+	fmt.Print(i18n.M().AuthSuccess)
 	fmt.Printf("    - User ID:     %s\n", user.ID)
 	fmt.Printf("    - Username:    %s\n", user.Username)
 	fmt.Printf("    - Global Name: %s\n", globalName)
 	fmt.Printf("    - 2FA Enabled: %t\n", user.MFAEnabled)
 
-	// 4. Discover Quests
-	fmt.Println("\n[*] Discovering Active Quests (GET /api/v9/quests/@me)...")
-	rawQuests, err := apiClient.FetchQuests(ctx)
+	for {
+		executePass(ctx, cfg, apiClient)
+
+		if !cfg.Daemon || cfg.DryRun {
+			break
+		}
+
+		if cfg.EnablePortal {
+			fmt.Printf("\n[⏳] Daemon standing by. Web UI online. Next scan in %v...\n", cfg.PollInterval)
+		} else {
+			fmt.Printf("\n[⏳] Daemon standing by (Headless mode). Next scan in %v...\n", cfg.PollInterval)
+		}
+		select {
+		case <-ctx.Done():
+			fmt.Println("\n[*] Shutting down daemon gracefully...")
+			return
+		case <-time.After(cfg.PollInterval):
+			fmt.Printf("\n[⏰] Starting periodic quest scan at %s...\n", time.Now().Format("15:04:05"))
+		}
+	}
+}
+
+func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client) {
+	// 4. Discover Quests (with Multi-Region / Locale Sweep)
+	var rawQuests []api.Quest
+	var err error
+	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
+		fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
+		var regions []string
+		for _, r := range strings.Split(cfg.Region, ",") {
+			rTrim := strings.TrimSpace(r)
+			if rTrim != "" {
+				regions = append(regions, rTrim)
+			}
+		}
+		rawQuests, err = apiClient.FetchQuestsMultiRegion(ctx, regions)
+		if err == nil {
+			fmt.Printf(i18n.M().RegionScanDone, len(rawQuests))
+		}
+	} else {
+		fmt.Println(i18n.M().DiscoveringQuests)
+		rawQuests, err = apiClient.FetchQuests(ctx)
+	}
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "[-] Failed to retrieve quests: %v\n", err)
+		fmt.Fprintf(os.Stderr, i18n.M().FailedRetrieveQuests, err)
 		return
 	}
 
@@ -100,34 +166,34 @@ func main() {
 
 	// 5. Auto-Enrollment (if enabled and not dry-run)
 	if cfg.AutoAccept && !cfg.DryRun {
-		fmt.Println("\n[*] Checking for un-enrolled active quests...")
-		enrolled, err := scanner.AutoEnrollPending(ctx, apiClient, analyzedQuests)
+		fmt.Println(i18n.M().AutoEnrollHeader)
+		enrolled, err := scanner.AutoEnrollPending(ctx, apiClient, analyzedQuests, cfg.EnablePortal, cfg.PortalPort)
 		if err != nil {
-			fmt.Printf("[-] Auto-enroll encountered error: %v\n", err)
+			fmt.Printf(i18n.M().AutoEnrollError, err)
 		} else if enrolled > 0 {
-			fmt.Printf("[+] Successfully auto-enrolled in %d new quest(s)!\n", enrolled)
-			fmt.Println("[*] Refreshing quest inventory after enrollment...")
+			fmt.Printf(i18n.M().AutoEnrollSuccess, enrolled)
+			fmt.Println(i18n.M().AutoEnrollRefresh)
 			rawQuests, err = apiClient.FetchQuests(ctx)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "[-] Failed to refresh quests after enrollment: %v\n", err)
+				fmt.Fprintf(os.Stderr, i18n.M().FailedRefreshQuests, err)
 				return
 			}
 			analyzedQuests = scanner.AnalyzeAll(rawQuests)
 			fmt.Print(scanner.FormatQuestTable(analyzedQuests))
 		} else {
-			fmt.Println("[+] All eligible active quests are already enrolled.")
+			fmt.Println(i18n.M().AutoEnrollAllEnrolled)
 		}
 	}
 
 	// 6. Dry-run Mode
 	if cfg.DryRun {
-		fmt.Println("\n[!] Dry-run enabled: scan completed successfully. No actions taken.")
+		fmt.Println(i18n.M().DryRunNotice)
 		return
 	}
 
 	// 7. Execution Engine Branching
 	if cfg.UseSpoofer {
-		fmt.Println("\n[*] Mode: OS Process Spoofer (Win32 dummy process emulation)")
+		fmt.Printf("\n[*] %s\n", i18n.M().ModeSpoofer)
 		spooferEngine, err := spoofer.NewSpoofer(cfg.CacheDir)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "[-] Failed initializing spoofer engine: %v\n", err)
@@ -139,7 +205,7 @@ func main() {
 			}
 		}
 	} else {
-		fmt.Println("\n[*] Mode: Autonomous API Runner (Heartbeat + Video-Progress API)")
+		fmt.Printf("\n[*] %s\n", i18n.M().ModeAPIRunner)
 		if err := runAPIRunnerLoop(ctx, cfg, apiClient, analyzedQuests); err != nil {
 			if err != context.Canceled && ctx.Err() == nil {
 				fmt.Fprintf(os.Stderr, "[-] API Runner error: %v\n", err)
@@ -147,28 +213,28 @@ func main() {
 		}
 	}
 
-	fmt.Println("\n[+] All tasks finished.")
+	fmt.Println(i18n.M().AllTasksFinished)
 }
 
 func printBanner() {
 	fmt.Println("==================================================================")
 	fmt.Printf("   Discord Quest Phantom (Unified Dual-Engine) v%s\n", Version)
-	fmt.Println("   Autonomous API Runner & OS Process Spoofer for Windows & Linux")
+	fmt.Printf("   %s\n", i18n.M().BannerSubtitle)
 	fmt.Println("==================================================================")
 }
 
 func getModeString(cfg *config.Config) string {
 	if cfg.UseSpoofer {
-		return "OS Process Spoofer (-spoofer)"
+		return i18n.M().ModeSpoofer
 	}
-	return "Autonomous API Runner (Default, Discord-Independent)"
+	return i18n.M().ModeAPIRunner
 }
 
 func promptExit(isError bool) {
 	if isError {
-		fmt.Println("\n[!] Đã xảy ra lỗi.")
+		fmt.Println(i18n.M().PromptExitError)
 	}
-	fmt.Print("\n[?] Nhấn phím Enter để thoát...")
+	fmt.Print(i18n.M().PromptExitKey)
 	reader := bufio.NewReader(os.Stdin)
 	_, _ = reader.ReadString('\n')
 }
@@ -194,65 +260,121 @@ func runAPIRunnerLoop(ctx context.Context, cfg *config.Config, client *api.Clien
 	}
 
 	if len(eligible) == 0 {
-		fmt.Println("[+] Không có quest nào cần hoàn thành lúc này (Tất cả quest đang hoạt động đã hoàn tất hoặc đã nhận thưởng)!")
+		fmt.Println(i18n.M().NoEligibleQuests)
 		return nil
 	}
 
-	fmt.Printf("\n[+] Tìm thấy %d quest cần hoàn thành:\n", len(eligible))
-	for i, q := range eligible {
-		rem := float64(q.TargetSec) - q.CurrentSec
-		if rem < 0 {
-			rem = 0
+	// Group eligible quests by Region to process region batches cleanly
+	// Quests belonging to the same region are executed in parallel up to concurrency.
+	// Only when that region finishes does it proceed to the next region.
+	regionBuckets := make(map[string][]scanner.AnalyzedQuest)
+	var regionOrder []string
+	for _, q := range eligible {
+		reg := q.Region
+		if reg == "" {
+			reg = "GLOBAL"
 		}
-		fmt.Printf("    %d. %-26s | %-24s | Còn lại: ~%.0fs / %ds\n",
-			i+1, q.Title, q.Category, rem, q.TargetSec)
+		if _, exists := regionBuckets[reg]; !exists {
+			regionOrder = append(regionOrder, reg)
+		}
+		regionBuckets[reg] = append(regionBuckets[reg], q)
 	}
 
-	for i, q := range eligible {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-		}
-
-		fmt.Printf("\n==================================================================\n")
-		fmt.Printf(">>> Đang xử lý [%d/%d]: %s (%s) <<<\n", i+1, len(eligible), q.Title, q.Category)
-		fmt.Printf("==================================================================\n")
-
-		var err error
-		switch q.TaskType {
-		case "WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE":
-			err = completeVideoAPI(ctx, client, q)
-		case "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP":
-			err = completeHeartbeatAPI(ctx, client, q)
-		case "PLAY_ACTIVITY":
-			err = completeActivityAPI(ctx, client, q)
-		default:
-			fmt.Printf("[!] Bỏ qua quest %s: Loại task %s chưa được hỗ trợ tự động.\n", q.Title, q.TaskType)
-			continue
-		}
-
-		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+	fmt.Printf(i18n.M().FoundEligibleQuests, len(eligible))
+	totalProcessed := 0
+	for _, reg := range regionOrder {
+		bucket := regionBuckets[reg]
+		fmt.Printf("\n[🌐] --- Region [%s] Batch (%d quests) ---\n", reg, len(bucket))
+		for i, q := range bucket {
+			rem := float64(q.TargetSec) - q.CurrentSec
+			if rem < 0 {
+				rem = 0
 			}
-			fmt.Printf("[-] Lỗi khi xử lý %s: %v. Chuyển sang quest tiếp theo...\n", q.Title, err)
-			continue
+			remStr := fmt.Sprintf(i18n.M().RemainingQuestSec, rem, q.TargetSec)
+			fmt.Printf("    %d. [%s] %-24s | %-22s | %s\n",
+				i+1, reg, q.Title, q.Category.Localized(), remStr)
 		}
 
-		if i < len(eligible)-1 {
-			time.Sleep(3 * time.Second)
+		concurrency := cfg.Concurrency
+		if concurrency <= 0 {
+			concurrency = 5
 		}
+		if concurrency > len(bucket) {
+			concurrency = len(bucket)
+		}
+
+		fmt.Printf(i18n.M().ConcurrentHeader, len(bucket), concurrency)
+
+		sem := make(chan struct{}, concurrency)
+		var wg sync.WaitGroup
+
+		for i, q := range bucket {
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+			}
+
+			sem <- struct{}{}
+			wg.Add(1)
+
+			go func(idx int, quest scanner.AnalyzedQuest) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
+
+				// Stagger start by 2.5s per concurrent lane to prevent API request bursts
+				laneDelay := time.Duration((idx-1)%concurrency) * 2500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(laneDelay):
+				}
+
+				processOneQuest(ctx, client, quest, idx, len(bucket))
+			}(i+1, q)
+		}
+
+		wg.Wait()
+		totalProcessed += len(bucket)
+		fmt.Printf("[✓] Region [%s] Batch Complete!\n", reg)
 	}
 
+	fmt.Printf(i18n.M().AllQuestsDone, totalProcessed)
 	return nil
+}
+
+func processOneQuest(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest, idx, total int) {
+	fmt.Printf("\n==================================================================\n")
+	fmt.Printf("%s\n", i18n.T(func(m i18n.Messages) string { return m.ProcessingQuestHeader }, idx, total, q.Title, q.Category.Localized()))
+	fmt.Printf("==================================================================\n")
+
+	var err error
+	switch q.TaskType {
+	case "WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE":
+		err = completeVideoAPI(ctx, client, q)
+	case "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP":
+		err = completeHeartbeatAPI(ctx, client, q)
+	case "PLAY_ACTIVITY":
+		err = completeActivityAPI(ctx, client, q)
+	default:
+		fmt.Printf(i18n.M().SkipUnsupportedTask, q.Title, q.TaskType)
+		return
+	}
+
+	if err != nil {
+		if ctx.Err() == nil {
+			fmt.Printf(i18n.M().QuestErrorSkip, q.Title, err)
+		}
+	}
 }
 
 func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest) error {
 	secondsNeeded := float64(q.TargetSec)
 	secondsDone := q.CurrentSec
 
-	fmt.Printf("[🎬 Video] Bắt đầu phát video: %s (Tiến độ: %.0f/%.0fs)\n", q.Title, secondsDone, secondsNeeded)
+	fmt.Printf(i18n.M().VideoStart, q.Title, secondsDone, secondsNeeded)
 
 	var enrolledTime time.Time
 	if q.Quest.UserStatus != nil && q.Quest.UserStatus.EnrolledAt != nil && *q.Quest.UserStatus.EnrolledAt != "" {
@@ -291,12 +413,12 @@ func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.Analyze
 
 			resp, err := client.SendVideoProgress(ctx, q.ID, sendVal)
 			if err != nil {
-				fmt.Printf("    [-] Cảnh báo video progress: %v\n", err)
+				fmt.Printf(i18n.M().VideoProgressWarning, err)
 			} else {
 				secondsDone = targetTimestamp
-				fmt.Printf("    [🎬] Tiến độ: %.0f/%.0fs (%.0f%%)\n", secondsDone, secondsNeeded, (secondsDone/secondsNeeded)*100.0)
+				fmt.Printf(i18n.M().VideoProgress, secondsDone, secondsNeeded, (secondsDone/secondsNeeded)*100.0)
 				if resp != nil && resp.CompletedAt != nil && *resp.CompletedAt != "" {
-					fmt.Printf("[✅] Hoàn thành xuất sắc: %s\n", q.Title)
+					fmt.Printf(i18n.M().VideoCompleted, q.Title)
 					return nil
 				}
 			}
@@ -308,9 +430,9 @@ func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.Analyze
 		time.Sleep(1 * time.Second)
 	}
 
-	// Chốt tiến độ cuối cùng
+	// Final progress update
 	_, _ = client.SendVideoProgress(ctx, q.ID, secondsNeeded)
-	fmt.Printf("[✅] Hoàn thành video quest: %s\n", q.Title)
+	fmt.Printf(i18n.M().VideoCompleted, q.Title)
 	return nil
 }
 
@@ -321,7 +443,7 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 	streamKey := fmt.Sprintf("call:0:%d", pid)
 
 	rem := secondsNeeded - secondsDone
-	fmt.Printf("[🎮 Game Heartbeat] Bắt đầu gửi tín hiệu chơi: %s (~%.0f phút còn lại)\n", q.Title, rem/60.0)
+	fmt.Printf(i18n.M().HeartbeatStart, q.Title, rem/60.0)
 
 	for secondsDone < secondsNeeded {
 		select {
@@ -332,7 +454,7 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 
 		resp, err := client.SendHeartbeat(ctx, q.ID, streamKey, false)
 		if err != nil {
-			fmt.Printf("    [-] Cảnh báo heartbeat: %v\n", err)
+			fmt.Printf(i18n.M().HeartbeatWarning, err)
 		} else if resp != nil {
 			if resp.Progress != nil {
 				if prog, ok := resp.Progress[q.TaskType]; ok {
@@ -347,7 +469,7 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 			if pct > 100.0 {
 				pct = 100.0
 			}
-			fmt.Printf("    [🎮] [%s] Tiến độ: %.0f/%.0fs (%.1f%%)\n",
+			fmt.Printf(i18n.M().HeartbeatProgress,
 				time.Now().Format("15:04:05"), secondsDone, secondsNeeded, pct)
 
 			if (resp.CompletedAt != nil && *resp.CompletedAt != "") || secondsDone >= secondsNeeded {
@@ -358,9 +480,9 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 		time.Sleep(20 * time.Second)
 	}
 
-	// Gửi heartbeat terminal để chốt kết thúc session
+	// Final terminal heartbeat
 	_, _ = client.SendHeartbeat(ctx, q.ID, streamKey, true)
-	fmt.Printf("[✅] Hoàn thành Play Quest: %s\n", q.Title)
+	fmt.Printf(i18n.M().HeartbeatCompleted, q.Title)
 	return nil
 }
 
@@ -369,7 +491,7 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 	secondsDone := q.CurrentSec
 	streamKey := "call:0:1"
 
-	fmt.Printf("[🕹️ Activity] Bắt đầu Activity: %s\n", q.Title)
+	fmt.Printf(i18n.M().ActivityStart, q.Title)
 
 	for secondsDone < secondsNeeded {
 		select {
@@ -380,14 +502,14 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 
 		resp, err := client.SendHeartbeat(ctx, q.ID, streamKey, false)
 		if err != nil {
-			fmt.Printf("    [-] Cảnh báo activity heartbeat: %v\n", err)
+			fmt.Printf(i18n.M().ActivityWarning, err)
 		} else if resp != nil {
 			if resp.Progress != nil && resp.Progress["PLAY_ACTIVITY"].Value > 0 {
 				secondsDone = resp.Progress["PLAY_ACTIVITY"].Value
 			} else {
 				secondsDone += 20.0
 			}
-			fmt.Printf("    [🕹️] Tiến độ Activity: %.0f/%.0fs\n", secondsDone, secondsNeeded)
+			fmt.Printf(i18n.M().ActivityProgress, secondsDone, secondsNeeded)
 			if (resp.CompletedAt != nil && *resp.CompletedAt != "") || secondsDone >= secondsNeeded {
 				break
 			}
@@ -397,7 +519,7 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 	}
 
 	_, _ = client.SendHeartbeat(ctx, q.ID, streamKey, true)
-	fmt.Printf("[✅] Hoàn thành Activity: %s\n", q.Title)
+	fmt.Printf(i18n.M().ActivityCompleted, q.Title)
 	return nil
 }
 
@@ -422,39 +544,74 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 	}
 
 	if len(eligible) == 0 {
-		fmt.Println("[+] Không có quest PLAY_ON_DESKTOP nào đủ điều kiện để chạy Spoofer.")
+		fmt.Println(i18n.M().SpooferNoEligible)
 		return nil
 	}
 
-	for i, eq := range eligible {
+	batchSize := cfg.Concurrency
+	if batchSize <= 0 {
+		batchSize = 5
+	}
+
+	for batchStart := 0; batchStart < len(eligible); batchStart += batchSize {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		fmt.Printf("\n>>> Spoofer Quest [%d/%d]: %s <<<\n", i+1, len(eligible), eq.Title)
-		exeName, gameTitle, err := spooferEngine.ResolveExecutable(eq.AppID)
-		if err != nil {
-			fmt.Printf("[-] Không tìm thấy executable cho AppID %s: %v\n", eq.AppID, err)
-			continue
-		}
-		if gameTitle == "" {
-			gameTitle = eq.Title
+		batchEnd := batchStart + batchSize
+		if batchEnd > len(eligible) {
+			batchEnd = len(eligible)
 		}
 
-		proc, err := spooferEngine.LaunchGame(ctx, eq.AppID, gameTitle, exeName)
-		if err != nil {
-			fmt.Printf("[-] Lỗi khởi động dummy game: %v\n", err)
+		type activeGame struct {
+			quest scanner.AnalyzedQuest
+			proc  spoofer.GameProcess
+			done  bool
+		}
+
+		var activeGames []*activeGame
+
+		fmt.Printf("\n[*] Starting Spoofer Batch: Concurrently launching %d game(s)...\n", batchEnd-batchStart)
+		for i := batchStart; i < batchEnd; i++ {
+			eq := eligible[i]
+			exeName, gameTitle, err := spooferEngine.ResolveExecutable(eq.AppID)
+			if err != nil {
+				fmt.Printf(i18n.M().SpooferNoExe, eq.AppID, err)
+				continue
+			}
+			if gameTitle == "" {
+				gameTitle = eq.Title
+			}
+			proc, err := spooferEngine.LaunchGame(ctx, eq.AppID, gameTitle, exeName)
+			if err != nil {
+				fmt.Printf(i18n.M().SpooferLaunchError, err)
+				continue
+			}
+			fmt.Printf(i18n.M().SpooferProcCreated, proc.ExecutableName(), proc.PID())
+			activeGames = append(activeGames, &activeGame{quest: eq, proc: proc})
+		}
+
+		if len(activeGames) == 0 {
 			continue
 		}
-		fmt.Printf("[+] Đã tạo tiến trình game ảo: %s (PID: %d)\n", proc.ExecutableName(), proc.PID())
 
-		// Poll loop
+		// Ensure cleanup of any running processes in this batch
+		cleanup := func() {
+			for _, ag := range activeGames {
+				if ag.proc != nil && !ag.done {
+					_ = ag.proc.Stop()
+					ag.done = true
+				}
+			}
+		}
+
+		// Poll loop for active batch
 		for {
 			select {
 			case <-ctx.Done():
-				_ = proc.Stop()
+				cleanup()
 				return ctx.Err()
 			case <-time.After(cfg.PollInterval):
 			}
@@ -463,21 +620,37 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 			if err != nil {
 				continue
 			}
-			var curQ *api.Quest
-			for _, rq := range rawQuests {
-				if rq.ID == eq.ID {
-					curQ = &rq
-					break
+
+			allBatchDone := true
+			for _, ag := range activeGames {
+				if ag.done {
+					continue
+				}
+
+				var curQ *api.Quest
+				for _, rq := range rawQuests {
+					if rq.ID == ag.quest.ID {
+						curQ = &rq
+						break
+					}
+				}
+				if curQ == nil {
+					allBatchDone = false
+					continue
+				}
+
+				analyzed := scanner.AnalyzeQuest(*curQ)
+				fmt.Printf("    [🎮 %s] Progress: %.0fs / %ds (State: %s)\n", analyzed.Title, analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
+				if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed || (analyzed.TargetSec > 0 && analyzed.CurrentSec >= float64(analyzed.TargetSec)) {
+					fmt.Printf(i18n.M().SpooferCompleted, analyzed.Title)
+					_ = ag.proc.Stop()
+					ag.done = true
+				} else {
+					allBatchDone = false
 				}
 			}
-			if curQ == nil {
-				continue
-			}
-			analyzed := scanner.AnalyzeQuest(*curQ)
-			fmt.Printf("[★] Tiến độ: %.0fs / %ds (State: %s)\n", analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
-			if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed || analyzed.CurrentSec >= float64(analyzed.TargetSec) {
-				fmt.Printf("[✔] Hoàn thành Spoofer Quest: %s!\n", analyzed.Title)
-				_ = proc.Stop()
+
+			if allBatchDone {
 				break
 			}
 		}

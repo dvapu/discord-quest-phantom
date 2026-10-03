@@ -25,6 +25,8 @@ active_*.py
 *.dylib
 discord-quest-completer
 discord-quest-completer.exe
+discord-quest-phantom
+completer
 
 # Build distribution folders
 dist/
