@@ -117,7 +117,30 @@ ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
 curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
-nohup ./discord-quest-phantom > quest.log 2>&1 &
+nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &
+```
+
+#### Thiết Lập Dịch Vụ Systemd (Tự Khởi Động Khi Bật Máy):
+Tạo file `/etc/systemd/system/discord-quest-phantom.service`:
+```ini
+[Unit]
+Description=Discord Quest Phantom Autonomous Daemon
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/discord-quest-phantom
+ExecStart=/opt/discord-quest-phantom/discord-quest-phantom -daemon -poll 15m -portal=false -concurrency 5 -region all -lang vi
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+Sau đó bật và chạy dịch vụ:
+```bash
+systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
 
 ---
@@ -126,11 +149,11 @@ nohup ./discord-quest-phantom > quest.log 2>&1 &
 
 | Cờ Lệnh | Mặc Định | Ý Nghĩa / Chức Năng |
 |---|---|---|
-| `-region` | `all` | Khu vực quét: `all` (US+JP+VN), `us`, `jp`, `vn` |
+| `-region` | `all` | Khu vực quét: `all` (Bộ Ba Vàng: US+JP+VN), `us`, `jp`, `vn` |
 | `-concurrency` | `5` | Số lượng quest chạy song song tối đa (1–5) |
 | `-daemon` | `false` | Chạy nền 24/7 như dịch vụ hệ thống, quét định kỳ tự động |
-| `-poll` | `60s` | Khoảng thời gian giãn cách giữa các lần quét khi bật daemon |
-| `-portal` | `true` | Bật cổng giải Captcha qua web nội bộ khi chạy headless |
+| `-poll` | `60s` | Khoảng thời gian giãn cách giữa các lần quét khi bật daemon (vd: `15m`, `30m`) |
+| `-portal` | `true` | Bật cổng giải Captcha qua web nội bộ (`false` để chạy nền âm thầm không mở port) |
 | `-portal-port` | `8080` | Cổng web giải Captcha (tự động tăng nếu bị trùng) |
 | `-spoofer` | `false` | Bật chế độ giả lập tiến trình game (cần mở Discord Desktop) |
 | `-lang` | `auto` | Ngôn ngữ giao diện: `auto`, `vi`, `en` |

@@ -120,7 +120,11 @@ func main() {
 			break
 		}
 
-		fmt.Printf("\n[⏳] Daemon standing by. Web UI online. Next scan in %v...\n", cfg.PollInterval)
+		if cfg.EnablePortal {
+			fmt.Printf("\n[⏳] Daemon standing by. Web UI online. Next scan in %v...\n", cfg.PollInterval)
+		} else {
+			fmt.Printf("\n[⏳] Daemon standing by (Headless mode). Next scan in %v...\n", cfg.PollInterval)
+		}
 		select {
 		case <-ctx.Done():
 			fmt.Println("\n[*] Shutting down daemon gracefully...")
