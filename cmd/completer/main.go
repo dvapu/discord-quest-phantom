@@ -23,7 +23,7 @@ import (
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
-var Version = "1.1.0"
+var Version = "1.1.1"
 
 func main() {
 	cfg, err := config.LoadConfig()

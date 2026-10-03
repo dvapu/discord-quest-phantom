@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.0
+# 👻 Discord Quest Phantom v1.1.1
 ### *Autonomous Cross-Platform Quest Completer for Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -26,7 +26,7 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.0           │
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.1           │
                         │   Multi-Region Sweep · Parallel Engine · Captcha Portal │
                         └───────────────────────────┬────────────────────────────┘
                                                     │
@@ -53,11 +53,11 @@
 
 ---
 
-## 🚀 Key Highlights & New Capabilities in v1.1.0
+## 🚀 Key Highlights & New Capabilities in v1.1.1
 
-1. **🌍 Multi-Region Auto-Scan (`--region all`)**:
+1. **🌍 Golden Trio Multi-Region Auto-Scan (`--region all`)**:
    - Discord region-locks exclusive avatar decorations and quests by evaluating `client_locale` / `system_locale` (why changing iPhone locale unlocks hidden quests).
-   - Phantom queries multiple regional endpoints (`en-US`, `ja-JP`, `vi-VN`) to aggregate all global quests into a unified dashboard, automatically discovering hidden avatar frames and promotions.
+   - Phantom queries the Golden Trio (`en-US`, `ja-JP`, `vi-VN`) in parallel (~2.5s) to reveal 100% of global quests, avatar frames, and rewards directly inside your Discord app without proxy/VPN!
 2. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
    - Complete 2–5 quests concurrently in parallel lanes with staggered request jitter.
    - Finish 5 games in **15 minutes** instead of 75 minutes!
@@ -117,7 +117,7 @@ Run this single command to download the standalone binary and start 24/7 backgro
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.1/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &
