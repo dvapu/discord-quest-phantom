@@ -31,6 +31,7 @@ type Config struct {
 	Region       string
 	EnablePortal bool
 	PortalPort   int
+	Concurrency  int
 }
 
 // MaskToken returns a safe, redacted representation of the Discord token for logs.
@@ -139,6 +140,7 @@ func LoadConfig() (*Config, error) {
 	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (US+JP+VN), us, jp, vn")
 	flag.BoolVar(&cfg.EnablePortal, "portal", true, "Enable local captcha web portal for headless environments")
 	flag.IntVar(&cfg.PortalPort, "portal-port", 8080, "Port for local captcha web portal")
+	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")
 
 	// Internal stub mode flags (used when spawned as a spoofed game process)
 	flag.BoolVar(&cfg.RunStub, "stub", false, "Internal stub mode: run as dummy game process")

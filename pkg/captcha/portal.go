@@ -198,11 +198,30 @@ type templateData struct {
 	OpenInDiscord string
 }
 
+// FindAvailablePort scans starting from startPort for an open TCP port to avoid conflicts.
+func FindAvailablePort(startPort int) int {
+	if startPort <= 0 {
+		startPort = 8080
+	}
+	for p := startPort; p < startPort+50; p++ {
+		ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", p))
+		if err == nil {
+			ln.Close()
+			return p
+		}
+	}
+	ln, err := net.Listen("tcp", "0.0.0.0:0")
+	if err == nil {
+		addr := ln.Addr().(*net.TCPAddr)
+		ln.Close()
+		return addr.Port
+	}
+	return startPort
+}
+
 // StartPortal launches a temporary local web server to present the captcha widget.
 func StartPortal(ctx context.Context, port int, challenge *api.CaptchaRequiredError, questTitle string) (string, error) {
-	if port <= 0 {
-		port = 8080
-	}
+	port = FindAvailablePort(port)
 
 	resultChan := make(chan string, 1)
 	errChan := make(chan error, 1)

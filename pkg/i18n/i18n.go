@@ -86,6 +86,10 @@ type Messages struct {
 	CaptchaSolvedSuccess  string
 	CaptchaTimeoutWarning string
 	CaptchaPortalDisabled string
+	UpdateAvailableBanner string
+	UpdateAvailableDetails string
+	ConcurrentHeader      string
+	AllQuestsDone         string
 }
 
 var catalogs = map[Language]Messages{
@@ -160,6 +164,10 @@ var catalogs = map[Language]Messages{
 		CaptchaSolvedSuccess:   "\n    [✅] Captcha solved successfully! Enrolling into quest '%s'...\n",
 		CaptchaTimeoutWarning:  "\n    [-] Captcha solve timed out or skipped. Skipping this quest for now.\n",
 		CaptchaPortalDisabled:  "    [!] Captcha portal is disabled. Please accept this quest manually in Discord.\n",
+		UpdateAvailableBanner:  "\n==================================================================\n [📢 UPDATE AVAILABLE] A new version of Discord Quest Phantom is available!\n==================================================================",
+		UpdateAvailableDetails: "    👉 Version: %s\n    👉 Download: %s\n==================================================================\n\n",
+		ConcurrentHeader:       "\n[*] Starting Parallel Engine: Concurrently running %d quest(s) (Max slots: %d)...\n",
+		AllQuestsDone:          "\n[🎉] All %d active quest(s) have finished processing successfully!\n",
 	},
 	LangVI: {
 		BannerSubtitle:        "Chạy API Tự Động & Giả Lập Tiến Trình Game Cho Windows & Linux",
@@ -232,6 +240,10 @@ var catalogs = map[Language]Messages{
 		CaptchaSolvedSuccess:   "\n    [✅] Đã giải Captcha thành công! Đang tiến hành nhận quest '%s'...\n",
 		CaptchaTimeoutWarning:  "\n    [-] Quá thời gian giải Captcha hoặc đã bỏ qua. Bỏ qua quest này lúc này.\n",
 		CaptchaPortalDisabled:  "    [!] Cổng Captcha đang tắt. Vui lòng tự nhận quest này trên app Discord.\n",
+		UpdateAvailableBanner:  "\n==================================================================\n [📢 CÓ BẢN CẬP NHẬT MỚI] Đã có phiên bản mới của Discord Quest Phantom!\n==================================================================",
+		UpdateAvailableDetails: "    👉 Phiên bản: %s\n    👉 Tải về tại: %s\n==================================================================\n\n",
+		ConcurrentHeader:       "\n[*] Khởi Động Tiến Trình Song Song: Đang chạy đồng thời %d quest (Tối đa: %d luồng)...\n",
+		AllQuestsDone:          "\n[🎉] Toàn bộ %d quest đã hoàn tất tiến độ thành công!\n",
 	},
 }
 

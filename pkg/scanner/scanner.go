@@ -211,12 +211,13 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 				fmt.Printf(i18n.M().CaptchaAlertTerminal, q.Title, q.ID)
 				fmt.Printf(i18n.M().CaptchaDeepLink, q.ID)
 				if enablePortal {
+					activePort := captcha.FindAvailablePort(portalPort)
 					outboundIP := captcha.GetOutboundIP()
-					fmt.Printf(i18n.M().CaptchaPortalLink, outboundIP, portalPort, q.ID)
+					fmt.Printf(i18n.M().CaptchaPortalLink, outboundIP, activePort, q.ID)
 					fmt.Print(i18n.M().CaptchaWaiting)
 
 					portalCtx, cancelPortal := context.WithTimeout(ctx, 3*time.Minute)
-					token, solveErr := captcha.StartPortal(portalCtx, portalPort, captchaErr, q.Title)
+					token, solveErr := captcha.StartPortal(portalCtx, activePort, captchaErr, q.Title)
 					cancelPortal()
 
 					if solveErr == nil && token != "" {

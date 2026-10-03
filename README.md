@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom
+# 👻 Discord Quest Phantom v1.1.0
 ### *Autonomous Cross-Platform Quest Completer for Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -25,21 +25,48 @@
 ---
 
 ```
-                        ┌──────────────────────────────────────────────┐
-                        │          DISCORD QUEST PHANTOM 👻            │
-                        │    Auto-Scan · Auto-Enroll · Zero-Ban        │
-                        └──────────────────────┬───────────────────────┘
-                                               │
-                        Independent Dual-Engine Architecture
-                                               │
-                ┌──────────────────────────────┴──────────────────────────────┐
-                ▼                                                             ▼
-     [ENGINE 1: AUTONOMOUS RUNNER - DEFAULT]                       [ENGINE 2: WIN32 OS SPOOFER]
-  - Runs ANYWHERE (Windows, Linux, Armbian, VPS)                - Designed for users running Discord Desktop
-  - NO Discord Desktop client required                          - Spawns invisible Win32 dummy game stubs
-  - Automatically bypasses "Choose Platform" popups             - Discord Desktop detects presence & sends Gateway
-  - Scrapes dynamic CDN build numbers with jitter               - Activated with CLI flag: -spoofer
+                        ┌────────────────────────────────────────────────────────┐
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.0           │
+                        │   Multi-Region Sweep · Parallel Engine · Captcha Portal │
+                        └───────────────────────────┬────────────────────────────┘
+                                                    │
+                                     Core System Orchestrator
+                                                    │
+                ┌───────────────────────────────────┼───────────────────────────────────┐
+                ▼                                   ▼                                   ▼
+    [1. MULTI-REGION SWEEP]             [2. PARALLEL RUNNER (DEFAULT)]        [3. LOCAL CAPTCHA PORTAL]
+  - Probes US, JP & VN locales       - Concurrently runs 2-5 quests       - Auto LAN IP & port detection
+  - Spoofs X-Super-Properties        - Staggered API request jitter       - Mobile 1-tap hCaptcha/Turnstile
+  - Reveals hidden avatar frames     - 5 games in 15 mins (not 75 mins!)  - Zero SSH/headless lockouts
+                │                                   │                                   │
+                └───────────────────────────────────┴───────────────────────────────────┘
+                                                    │
+                                 Dual-Engine Execution Layer
+                                                    │
+                ┌───────────────────────────────────┴───────────────────────────────────┐
+                ▼                                                                       ▼
+   [ENGINE 1: AUTONOMOUS API RUNNER]                                       [ENGINE 2: OS PROCESS SPOOFER]
+  - 100% Headless (Windows, Linux, Armbian, VPS)                        - For users running Discord Desktop
+  - NO browser or Discord app required                                  - Concurrently spawns dummy game stubs
+  - Auto video playback & synthetic stream frames                       - Discord Desktop broadcasts Gateway status
 ```
+
+---
+
+## 🚀 Key Highlights & New Capabilities in v1.1.0
+
+1. **🌍 Multi-Region Auto-Scan (`--region all`)**:
+   - Discord region-locks exclusive avatar decorations and quests by evaluating `client_locale` / `system_locale` (why changing iPhone locale unlocks hidden quests).
+   - Phantom queries multiple regional endpoints (`en-US`, `ja-JP`, `vi-VN`) to aggregate all global quests into a unified dashboard, automatically discovering hidden avatar frames and promotions.
+2. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
+   - Complete 2–5 quests concurrently in parallel lanes with staggered request jitter.
+   - Finish 5 games in **15 minutes** instead of 75 minutes!
+3. **📱 Local Captcha Web Portal (`-portal` & `-portal-port`)**:
+   - Running headless on a 24/7 Linux server/Armbian (e.g. `192.168.1.200`) via SSH?
+   - When Discord challenges an enrollment, Phantom spins up a local web portal on port `8080` (with auto port-conflict resolution).
+   - Just tap the local LAN link on your phone (same WiFi) to solve the captcha in 3 seconds, and the headless daemon instantly resumes!
+4. **🔄 Auto-Update Notification**:
+   - Built-in updater queries GitHub releases at startup and alerts you when a new build is released.
 
 ---
 
@@ -81,7 +108,7 @@ Discord Quests come in multiple task structures. Discord Quest Phantom categoriz
 ### For Windows:
 1. Download `discord-quest-phantom-windows-amd64.zip` from [Releases](https://github.com/dvapu/discord-quest-phantom/releases).
 2. Extract the archive into any folder.
-3. **Double-click `discord-quest-phantom.exe`**:
+3. Double-click `run.cmd` or `discord-quest-phantom.exe`:
    - If `.token` is missing, the program will interactively prompt you to paste your token, save it automatically, and start immediately!
    - No Python installation needed, no dependencies required, no Discord client needed!
 
@@ -90,11 +117,26 @@ Run this single command to download the standalone binary and start 24/7 backgro
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.0.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
 nohup ./discord-quest-phantom > quest.log 2>&1 &
 ```
+
+---
+
+## ⚙️ CLI Options & Configuration Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `-region` | `all` | Regional probe scope: `all` (US+JP+VN), `us`, `jp`, `vn` |
+| `-concurrency` | `5` | Maximum concurrent quests running in parallel (1–5) |
+| `-portal` | `true` | Enable local LAN captcha web portal for headless environments |
+| `-portal-port` | `8080` | Port for captcha web portal (auto-increments if port is busy) |
+| `-spoofer` | `false` | Enable Win32 OS process emulation (requires Discord Desktop running) |
+| `-lang` | `auto` | Language override: `auto`, `en`, `vi` |
+| `-dry-run` | `false` | Discover and display active quests without taking any actions |
+| `-token` | `""` | Provide Discord token directly via command-line argument |
 
 ---
 
@@ -112,12 +154,15 @@ nohup ./discord-quest-phantom > quest.log 2>&1 &
 ```
 discord-quest-phantom/
 ├── cmd/
-│   └── completer/main.go       # Core Dual-Engine Orchestrator (API Runner + Spoofer)
+│   └── completer/main.go       # Core Dual-Engine Orchestrator (Parallel Runner + Spoofer)
 ├── pkg/
 │   ├── api/                    # REST Client, CDN Build Scraper, Video & Heartbeat
+│   ├── captcha/                # Local LAN Captcha Web Portal (auto port resolution)
 │   ├── config/                 # Token resolution & CLI parsing (interactive prompt)
+│   ├── i18n/                   # Zero-dependency bilingual translation catalogs (EN, VI)
 │   ├── scanner/                # Quest classification, lifecycle coordinator & expiry filter
-│   └── spoofer/                # Win32 GUI message pump & Linux process emulation
+│   ├── spoofer/                # Win32 GUI message pump & Linux process emulation
+│   └── updater/                # GitHub release checker & update notification engine
 ├── docs/
 │   ├── translations/           # Multilingual documentation (VI, ZH, KO, JA, HI)
 │   ├── ARCHITECTURE.md         # In-depth architectural review & risk matrix
@@ -128,6 +173,8 @@ discord-quest-phantom/
 │   ├── build.ps1               # Windows PowerShell build script
 │   └── build.sh                # Linux Bash build script
 ├── main.py                     # Standalone Python runner (Cross-platform)
+├── run.cmd                     # Windows 1-click launcher
+├── setup_token.cmd             # Windows token setup assistant
 ├── .gitignore                  # Security filter (blocks token leaks)
 ├── LICENSE                     # MIT License
 └── README.md                   # Multilingual project documentation

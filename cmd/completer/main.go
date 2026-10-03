@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"discord-quest-completer/pkg/i18n"
 	"discord-quest-completer/pkg/scanner"
 	"discord-quest-completer/pkg/spoofer"
+	"discord-quest-completer/pkg/updater"
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
@@ -49,11 +51,19 @@ func main() {
 	// Main Orchestrator Execution
 	printBanner()
 
+	// Check for GitHub updates (non-blocking with quick 2s timeout)
+	updateCtx, updateCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	if rel, hasUpdate := updater.CheckUpdate(updateCtx, Version); hasUpdate && rel != nil {
+		fmt.Println(i18n.M().UpdateAvailableBanner)
+		fmt.Printf(i18n.M().UpdateAvailableDetails, rel.TagName, rel.HTMLURL)
+	}
+	updateCancel()
+
 	fmt.Printf("[+] OS: %s | Arch: %s | CPU Cores: %d\n", runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
 	fmt.Printf("[+] Language: %s (Auto-detected / Configured)\n", i18n.GetLanguage())
 	fmt.Printf("[+] Loaded token: %s\n", config.MaskToken(cfg.Token))
 	fmt.Printf("[+] Mode: %s\n", getModeString(cfg))
-	fmt.Printf("[+] Polling Interval: %v | Auto-Enroll: %t\n", cfg.PollInterval, cfg.AutoAccept)
+	fmt.Printf("[+] Polling Interval: %v | Auto-Enroll: %t | Concurrency: %d\n", cfg.PollInterval, cfg.AutoAccept, cfg.Concurrency)
 	fmt.Printf("[+] Region Sweep: %s | Captcha Portal: %t (Port: %d)\n", cfg.Region, cfg.EnablePortal, cfg.PortalPort)
 	if cfg.QuestID != "" {
 		fmt.Printf("[+] Targeted Quest ID: %s\n", cfg.QuestID)
@@ -230,6 +240,19 @@ func runAPIRunnerLoop(ctx context.Context, cfg *config.Config, client *api.Clien
 			i+1, q.Title, q.Category.Localized(), remStr)
 	}
 
+	concurrency := cfg.Concurrency
+	if concurrency <= 0 {
+		concurrency = 5
+	}
+	if concurrency > len(eligible) {
+		concurrency = len(eligible)
+	}
+
+	fmt.Printf(i18n.M().ConcurrentHeader, len(eligible), concurrency)
+
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
+
 	for i, q := range eligible {
 		select {
 		case <-ctx.Done():
@@ -237,37 +260,55 @@ func runAPIRunnerLoop(ctx context.Context, cfg *config.Config, client *api.Clien
 		default:
 		}
 
-		fmt.Printf("\n==================================================================\n")
-		fmt.Printf("%s\n", i18n.T(func(m i18n.Messages) string { return m.ProcessingQuestHeader }, i+1, len(eligible), q.Title, q.Category.Localized()))
-		fmt.Printf("==================================================================\n")
+		sem <- struct{}{}
+		wg.Add(1)
 
-		var err error
-		switch q.TaskType {
-		case "WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE":
-			err = completeVideoAPI(ctx, client, q)
-		case "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP":
-			err = completeHeartbeatAPI(ctx, client, q)
-		case "PLAY_ACTIVITY":
-			err = completeActivityAPI(ctx, client, q)
-		default:
-			fmt.Printf(i18n.M().SkipUnsupportedTask, q.Title, q.TaskType)
-			continue
-		}
+		go func(idx int, quest scanner.AnalyzedQuest) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
 
-		if err != nil {
-			if ctx.Err() != nil {
-				return ctx.Err()
+			// Stagger start by 2.5s per concurrent lane to prevent API request bursts
+			laneDelay := time.Duration(idx%concurrency) * 2500 * time.Millisecond
+			select {
+			case <-ctx.Done():
+				return
+			case <-time.After(laneDelay):
 			}
-			fmt.Printf(i18n.M().QuestErrorSkip, q.Title, err)
-			continue
-		}
 
-		if i < len(eligible)-1 {
-			time.Sleep(3 * time.Second)
-		}
+			processOneQuest(ctx, client, quest, idx, len(eligible))
+		}(i+1, q)
 	}
 
+	wg.Wait()
+	fmt.Printf(i18n.M().AllQuestsDone, len(eligible))
 	return nil
+}
+
+func processOneQuest(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest, idx, total int) {
+	fmt.Printf("\n==================================================================\n")
+	fmt.Printf("%s\n", i18n.T(func(m i18n.Messages) string { return m.ProcessingQuestHeader }, idx, total, q.Title, q.Category.Localized()))
+	fmt.Printf("==================================================================\n")
+
+	var err error
+	switch q.TaskType {
+	case "WATCH_VIDEO", "WATCH_VIDEO_ON_MOBILE":
+		err = completeVideoAPI(ctx, client, q)
+	case "PLAY_ON_DESKTOP", "STREAM_ON_DESKTOP":
+		err = completeHeartbeatAPI(ctx, client, q)
+	case "PLAY_ACTIVITY":
+		err = completeActivityAPI(ctx, client, q)
+	default:
+		fmt.Printf(i18n.M().SkipUnsupportedTask, q.Title, q.TaskType)
+		return
+	}
+
+	if err != nil {
+		if ctx.Err() == nil {
+			fmt.Printf(i18n.M().QuestErrorSkip, q.Title, err)
+		}
+	}
 }
 
 func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest) error {
@@ -448,35 +489,70 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 		return nil
 	}
 
-	for i, eq := range eligible {
+	batchSize := cfg.Concurrency
+	if batchSize <= 0 {
+		batchSize = 5
+	}
+
+	for batchStart := 0; batchStart < len(eligible); batchStart += batchSize {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
 
-		fmt.Printf(i18n.M().SpooferHeader, i+1, len(eligible), eq.Title)
-		exeName, gameTitle, err := spooferEngine.ResolveExecutable(eq.AppID)
-		if err != nil {
-			fmt.Printf(i18n.M().SpooferNoExe, eq.AppID, err)
-			continue
-		}
-		if gameTitle == "" {
-			gameTitle = eq.Title
+		batchEnd := batchStart + batchSize
+		if batchEnd > len(eligible) {
+			batchEnd = len(eligible)
 		}
 
-		proc, err := spooferEngine.LaunchGame(ctx, eq.AppID, gameTitle, exeName)
-		if err != nil {
-			fmt.Printf(i18n.M().SpooferLaunchError, err)
+		type activeGame struct {
+			quest scanner.AnalyzedQuest
+			proc  spoofer.GameProcess
+			done  bool
+		}
+
+		var activeGames []*activeGame
+
+		fmt.Printf("\n[*] Starting Spoofer Batch: Concurrently launching %d game(s)...\n", batchEnd-batchStart)
+		for i := batchStart; i < batchEnd; i++ {
+			eq := eligible[i]
+			exeName, gameTitle, err := spooferEngine.ResolveExecutable(eq.AppID)
+			if err != nil {
+				fmt.Printf(i18n.M().SpooferNoExe, eq.AppID, err)
+				continue
+			}
+			if gameTitle == "" {
+				gameTitle = eq.Title
+			}
+			proc, err := spooferEngine.LaunchGame(ctx, eq.AppID, gameTitle, exeName)
+			if err != nil {
+				fmt.Printf(i18n.M().SpooferLaunchError, err)
+				continue
+			}
+			fmt.Printf(i18n.M().SpooferProcCreated, proc.ExecutableName(), proc.PID())
+			activeGames = append(activeGames, &activeGame{quest: eq, proc: proc})
+		}
+
+		if len(activeGames) == 0 {
 			continue
 		}
-		fmt.Printf(i18n.M().SpooferProcCreated, proc.ExecutableName(), proc.PID())
 
-		// Poll loop
+		// Ensure cleanup of any running processes in this batch
+		cleanup := func() {
+			for _, ag := range activeGames {
+				if ag.proc != nil && !ag.done {
+					_ = ag.proc.Stop()
+					ag.done = true
+				}
+			}
+		}
+
+		// Poll loop for active batch
 		for {
 			select {
 			case <-ctx.Done():
-				_ = proc.Stop()
+				cleanup()
 				return ctx.Err()
 			case <-time.After(cfg.PollInterval):
 			}
@@ -485,21 +561,37 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 			if err != nil {
 				continue
 			}
-			var curQ *api.Quest
-			for _, rq := range rawQuests {
-				if rq.ID == eq.ID {
-					curQ = &rq
-					break
+
+			allBatchDone := true
+			for _, ag := range activeGames {
+				if ag.done {
+					continue
+				}
+
+				var curQ *api.Quest
+				for _, rq := range rawQuests {
+					if rq.ID == ag.quest.ID {
+						curQ = &rq
+						break
+					}
+				}
+				if curQ == nil {
+					allBatchDone = false
+					continue
+				}
+
+				analyzed := scanner.AnalyzeQuest(*curQ)
+				fmt.Printf("    [🎮 %s] Progress: %.0fs / %ds (State: %s)\n", analyzed.Title, analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
+				if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed || (analyzed.TargetSec > 0 && analyzed.CurrentSec >= float64(analyzed.TargetSec)) {
+					fmt.Printf(i18n.M().SpooferCompleted, analyzed.Title)
+					_ = ag.proc.Stop()
+					ag.done = true
+				} else {
+					allBatchDone = false
 				}
 			}
-			if curQ == nil {
-				continue
-			}
-			analyzed := scanner.AnalyzeQuest(*curQ)
-			fmt.Printf(i18n.M().SpooferProgress, analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
-			if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed || analyzed.CurrentSec >= float64(analyzed.TargetSec) {
-				fmt.Printf(i18n.M().SpooferCompleted, analyzed.Title)
-				_ = proc.Stop()
+
+			if allBatchDone {
 				break
 			}
 		}
