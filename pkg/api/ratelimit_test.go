@@ -42,7 +42,7 @@ func TestValidateTokenMockHTTP401(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("fake_token")
+	client := NewClient("fake_token", 504649)
 	client.apiBase = server.URL
 
 	user, err := client.ValidateToken(context.Background())
@@ -61,7 +61,7 @@ func TestValidateTokenMockHTTP429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("fake_token")
+	client := NewClient("fake_token", 504649)
 	client.apiBase = server.URL
 
 	user, err := client.ValidateToken(context.Background())
@@ -86,7 +86,7 @@ func TestFetchQuestsRetryOnHTTP429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test_token")
+	client := NewClient("test_token", 504649)
 	client.apiBase = server.URL
 
 	quests, err := client.FetchQuests(context.Background())
@@ -115,7 +115,7 @@ func TestEnrollQuestRetryOnHTTP429(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := NewClient("test_token")
+	client := NewClient("test_token", 504649)
 	client.apiBase = server.URL
 
 	err := client.EnrollQuest(context.Background(), Quest{ID: "quest_enroll_test"})

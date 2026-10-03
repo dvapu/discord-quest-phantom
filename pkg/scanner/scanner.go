@@ -2,11 +2,14 @@ package scanner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"discord-quest-completer/pkg/api"
+	"discord-quest-completer/pkg/captcha"
+	"discord-quest-completer/pkg/i18n"
 )
 
 // QuestState represents the current user status for a quest.
@@ -31,6 +34,24 @@ const (
 	CategoryActivity      QuestCategory = "🏆 Activity/Mission"
 	CategoryUnknown       QuestCategory = "❓ Other"
 )
+
+// Localized returns the localized category string.
+func (c QuestCategory) Localized() string {
+	switch c {
+	case CategoryPurePC:
+		return i18n.M().CatPurePC
+	case CategoryCrossPlatform:
+		return i18n.M().CatCrossPlatform
+	case CategoryVideoDesktop:
+		return i18n.M().CatVideoDesktop
+	case CategoryVideoMobile:
+		return i18n.M().CatVideoMobile
+	case CategoryActivity:
+		return i18n.M().CatActivity
+	default:
+		return i18n.M().CatOther
+	}
+}
 
 // AnalyzedQuest summarizes quest requirements and user progression.
 type AnalyzedQuest struct {
@@ -171,17 +192,55 @@ func AnalyzeAll(rawQuests []api.Quest) []AnalyzedQuest {
 }
 
 // AutoEnrollPending automatically enrolls into all un-enrolled active quests.
-func AutoEnrollPending(ctx context.Context, client *api.Client, quests []AnalyzedQuest) (int, error) {
+func AutoEnrollPending(ctx context.Context, client *api.Client, quests []AnalyzedQuest, enablePortal bool, portalPort int) (int, error) {
 	enrolledCount := 0
 	for _, q := range quests {
 		if q.State != StateAvailable || q.IsExpired {
 			continue
 		}
 
-		fmt.Printf(" [Auto-Enroll] Enrolling in quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category)
+		if i18n.GetLanguage() == i18n.LangVI {
+			fmt.Printf(" [Tự Động Nhận] Đang tham gia quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
+		} else {
+			fmt.Printf(" [Auto-Enroll] Enrolling in quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
+		}
 		err := client.EnrollQuest(ctx, q.Quest)
 		if err != nil {
-			fmt.Printf(" [Auto-Enroll] Warning: failed enrolling in %s: %v\n", q.Title, err)
+			var captchaErr *api.CaptchaRequiredError
+			if errors.As(err, &captchaErr) {
+				fmt.Printf(i18n.M().CaptchaAlertTerminal, q.Title, q.ID)
+				fmt.Printf(i18n.M().CaptchaDeepLink, q.ID)
+				if enablePortal {
+					outboundIP := captcha.GetOutboundIP()
+					fmt.Printf(i18n.M().CaptchaPortalLink, outboundIP, portalPort, q.ID)
+					fmt.Print(i18n.M().CaptchaWaiting)
+
+					portalCtx, cancelPortal := context.WithTimeout(ctx, 3*time.Minute)
+					token, solveErr := captcha.StartPortal(portalCtx, portalPort, captchaErr, q.Title)
+					cancelPortal()
+
+					if solveErr == nil && token != "" {
+						fmt.Printf(i18n.M().CaptchaSolvedSuccess, q.Title)
+						enrollErr := client.EnrollQuestWithCaptcha(ctx, q.Quest, token, captchaErr.CaptchaRqtoken)
+						if enrollErr == nil {
+							enrolledCount++
+							continue
+						}
+						fmt.Printf(" [-] Error enrolling after captcha: %v\n", enrollErr)
+					} else {
+						fmt.Print(i18n.M().CaptchaTimeoutWarning)
+					}
+				} else {
+					fmt.Print(i18n.M().CaptchaPortalDisabled)
+				}
+				continue
+			}
+
+			if i18n.GetLanguage() == i18n.LangVI {
+				fmt.Printf(" [Tự Động Nhận] Cảnh báo: không thể nhận quest %s: %v\n", q.Title, err)
+			} else {
+				fmt.Printf(" [Auto-Enroll] Warning: failed enrolling in %s: %v\n", q.Title, err)
+			}
 			continue
 		}
 		enrolledCount++
@@ -215,12 +274,12 @@ func FormatQuestTable(quests []AnalyzedQuest) string {
 		}
 	}
 
-	sb.WriteString(fmt.Sprintf("\n=== Discord Quest Inventory (Total: %d) ===\n", len(quests)))
-	sb.WriteString(fmt.Sprintf("Status Breakdown: Claimed: %d | Completed: %d | Enrolled: %d | Available: %d | Expired: %d\n",
+	sb.WriteString(fmt.Sprintf(i18n.M().TableInventory, len(quests)))
+	sb.WriteString(fmt.Sprintf(i18n.M().TableBreakdown,
 		claimed, completed, enrolled, available, expired))
 	sb.WriteString(strings.Repeat("-", 108) + "\n")
 	sb.WriteString(fmt.Sprintf("%-19s | %-24s | %-24s | %-14s | %-9s | %s\n",
-		"Quest ID", "Title / Game", "Category", "Task Type", "Progress", "State"))
+		i18n.M().TableHeaderID, i18n.M().TableHeaderTitle, i18n.M().TableHeaderCategory, i18n.M().TableHeaderTaskType, i18n.M().TableHeaderProgress, i18n.M().TableHeaderState))
 	sb.WriteString(strings.Repeat("-", 108) + "\n")
 
 	for _, q := range quests {
@@ -232,7 +291,7 @@ func FormatQuestTable(quests []AnalyzedQuest) string {
 		if len([]rune(title)) > 24 {
 			title = string([]rune(title)[:21]) + "..."
 		}
-		cat := string(q.Category)
+		cat := q.Category.Localized()
 		if len([]rune(cat)) > 24 {
 			cat = string([]rune(cat)[:21]) + "..."
 		}
