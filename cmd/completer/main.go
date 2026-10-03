@@ -106,11 +106,10 @@ func main() {
 	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
 		fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
 		var regions []string
-		if cfg.Region == "all" {
-			regions = []string{"us", "jp", "vn"}
-		} else {
-			for _, r := range strings.Split(cfg.Region, ",") {
-				regions = append(regions, strings.TrimSpace(r))
+		for _, r := range strings.Split(cfg.Region, ",") {
+			rTrim := strings.TrimSpace(r)
+			if rTrim != "" {
+				regions = append(regions, rTrim)
 			}
 		}
 		rawQuests, err = apiClient.FetchQuestsMultiRegion(ctx, regions)

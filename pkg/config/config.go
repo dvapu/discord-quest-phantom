@@ -137,7 +137,7 @@ func LoadConfig() (*Config, error) {
 	flag.BoolVar(&cfg.UseSpoofer, "spoofer", false, "Enable OS Process Spoofer mode (requires Discord Desktop running)")
 	flag.BoolVar(&cfg.KeepOpen, "keep-open", true, "Wait for keypress before exiting (prevents instant window closing on double-click)")
 	flag.StringVar(&cfg.Lang, "lang", "auto", "Language / Ngôn ngữ (auto, en, vi)")
-	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (US+JP+VN), us, jp, vn")
+	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (fast US+JP+VN), full (12 countries), or codes (us,jp,vn,kr,cn,tw,in,de,fr,br,ru,tr)")
 	flag.BoolVar(&cfg.EnablePortal, "portal", true, "Enable local captcha web portal for headless environments")
 	flag.IntVar(&cfg.PortalPort, "portal-port", 8080, "Port for local captcha web portal")
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")

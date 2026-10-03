@@ -126,7 +126,7 @@ nohup ./discord-quest-phantom > quest.log 2>&1 &
 
 | Cờ Lệnh | Mặc Định | Ý Nghĩa / Chức Năng |
 |---|---|---|
-| `-region` | `all` | Khu vực quét: `all` (US+JP+VN), `us`, `jp`, `vn` |
+| `-region` | `all` | Khu vực quét: `all` (quét nhanh US+JP+VN), `full` (12 nước: US, JP, VN, KR, CN, TW, IN, DE, FR, BR, RU, TR), hoặc nhập mã nước |
 | `-concurrency` | `5` | Số lượng quest chạy song song tối đa (1–5) |
 | `-portal` | `true` | Bật cổng giải Captcha qua web nội bộ khi chạy headless |
 | `-portal-port` | `8080` | Cổng web giải Captcha (tự động tăng nếu bị trùng) |

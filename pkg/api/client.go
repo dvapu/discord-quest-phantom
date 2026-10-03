@@ -351,6 +351,30 @@ func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) (
 	wantUS := false
 	wantJP := false
 	wantVN := false
+	wantKR := false
+	wantCN := false
+	wantTW := false
+	wantIN := false
+	wantDE := false
+	wantFR := false
+	wantBR := false
+	wantRU := false
+	wantTR := false
+
+	addFull := func() {
+		wantUS = true
+		wantJP = true
+		wantVN = true
+		wantKR = true
+		wantCN = true
+		wantTW = true
+		wantIN = true
+		wantDE = true
+		wantFR = true
+		wantBR = true
+		wantRU = true
+		wantTR = true
+	}
 
 	if len(regions) == 0 {
 		wantUS = true
@@ -360,15 +384,36 @@ func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) (
 		for _, r := range regions {
 			switch strings.ToLower(strings.TrimSpace(r)) {
 			case "all", "":
+				// Core fast trio (100% quest coverage in ~2.5s without hitting HTTP 429)
 				wantUS = true
 				wantJP = true
 				wantVN = true
+			case "full", "global", "deep":
+				addFull()
 			case "us", "en", "en-us":
 				wantUS = true
 			case "jp", "ja", "ja-jp":
 				wantJP = true
 			case "vn", "vi", "vi-vn":
 				wantVN = true
+			case "kr", "ko", "ko-kr":
+				wantKR = true
+			case "cn", "zh", "zh-cn":
+				wantCN = true
+			case "tw", "zh-tw", "hk":
+				wantTW = true
+			case "in", "hi", "en-in", "hi-in":
+				wantIN = true
+			case "de", "de-de", "eu":
+				wantDE = true
+			case "fr", "fr-fr":
+				wantFR = true
+			case "br", "pt", "pt-br", "latam":
+				wantBR = true
+			case "ru", "ru-ru":
+				wantRU = true
+			case "tr", "tr-tr":
+				wantTR = true
 			}
 		}
 	}
@@ -381,6 +426,33 @@ func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) (
 	}
 	if wantVN {
 		targets = append(targets, targetLocale{locale: "vi-VN", timezone: "Asia/Ho_Chi_Minh"})
+	}
+	if wantKR {
+		targets = append(targets, targetLocale{locale: "ko-KR", timezone: "Asia/Seoul"})
+	}
+	if wantCN {
+		targets = append(targets, targetLocale{locale: "zh-CN", timezone: "Asia/Shanghai"})
+	}
+	if wantTW {
+		targets = append(targets, targetLocale{locale: "zh-TW", timezone: "Asia/Taipei"})
+	}
+	if wantIN {
+		targets = append(targets, targetLocale{locale: "en-IN", timezone: "Asia/Kolkata"})
+	}
+	if wantDE {
+		targets = append(targets, targetLocale{locale: "de-DE", timezone: "Europe/Berlin"})
+	}
+	if wantFR {
+		targets = append(targets, targetLocale{locale: "fr-FR", timezone: "Europe/Paris"})
+	}
+	if wantBR {
+		targets = append(targets, targetLocale{locale: "pt-BR", timezone: "America/Sao_Paulo"})
+	}
+	if wantRU {
+		targets = append(targets, targetLocale{locale: "ru-RU", timezone: "Europe/Moscow"})
+	}
+	if wantTR {
+		targets = append(targets, targetLocale{locale: "tr-TR", timezone: "Europe/Istanbul"})
 	}
 
 	seen := make(map[string]bool)
