@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"discord-quest-completer/pkg/api"
+	"discord-quest-completer/pkg/captcha"
 	"discord-quest-completer/pkg/config"
 	"discord-quest-completer/pkg/i18n"
 	"discord-quest-completer/pkg/scanner"
@@ -72,6 +73,17 @@ func main() {
 		fmt.Printf("[+] Max Session Duration: %v\n", cfg.Duration)
 	}
 
+	// Initialize Persistent Web UI & Captcha Portal (if enabled)
+	if cfg.EnablePortal {
+		p, err := captcha.StartBackgroundPortal(cfg.PortalPort)
+		if err == nil && p != nil {
+			fmt.Printf("\n========================================================================\n")
+			fmt.Printf(" [🌐] Local Web UI & Captcha Portal: %s\n", p.URL())
+			fmt.Printf("      Dashboard & Test URL: %s/test\n", p.URL())
+			fmt.Printf("========================================================================\n")
+		}
+	}
+
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
@@ -101,8 +113,28 @@ func main() {
 	fmt.Printf("    - Global Name: %s\n", globalName)
 	fmt.Printf("    - 2FA Enabled: %t\n", user.MFAEnabled)
 
+	for {
+		executePass(ctx, cfg, apiClient)
+
+		if !cfg.Daemon || cfg.DryRun {
+			break
+		}
+
+		fmt.Printf("\n[⏳] Daemon standing by. Web UI online. Next scan in %v...\n", cfg.PollInterval)
+		select {
+		case <-ctx.Done():
+			fmt.Println("\n[*] Shutting down daemon gracefully...")
+			return
+		case <-time.After(cfg.PollInterval):
+			fmt.Printf("\n[⏰] Starting periodic quest scan at %s...\n", time.Now().Format("15:04:05"))
+		}
+	}
+}
+
+func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client) {
 	// 4. Discover Quests (with Multi-Region / Locale Sweep)
 	var rawQuests []api.Quest
+	var err error
 	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
 		fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
 		var regions []string

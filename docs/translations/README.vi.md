@@ -126,8 +126,10 @@ nohup ./discord-quest-phantom > quest.log 2>&1 &
 
 | Cờ Lệnh | Mặc Định | Ý Nghĩa / Chức Năng |
 |---|---|---|
-| `-region` | `all` | Khu vực quét: `all` (quét nhanh US+JP+VN), `full` (12 nước: US, JP, VN, KR, CN, TW, IN, DE, FR, BR, RU, TR), hoặc nhập mã nước |
+| `-region` | `all` | Khu vực quét: `all` (US+JP+VN), `us`, `jp`, `vn` |
 | `-concurrency` | `5` | Số lượng quest chạy song song tối đa (1–5) |
+| `-daemon` | `false` | Chạy nền 24/7 như dịch vụ hệ thống, quét định kỳ tự động |
+| `-poll` | `60s` | Khoảng thời gian giãn cách giữa các lần quét khi bật daemon |
 | `-portal` | `true` | Bật cổng giải Captcha qua web nội bộ khi chạy headless |
 | `-portal-port` | `8080` | Cổng web giải Captcha (tự động tăng nếu bị trùng) |
 | `-spoofer` | `false` | Bật chế độ giả lập tiến trình game (cần mở Discord Desktop) |

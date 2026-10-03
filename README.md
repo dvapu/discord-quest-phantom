@@ -129,8 +129,10 @@ nohup ./discord-quest-phantom > quest.log 2>&1 &
 
 | Flag | Default | Description |
 |---|---|---|
-| `-region` | `all` | Regional probe scope: `all` (fast US+JP+VN), `full` (12 countries: US, JP, VN, KR, CN, TW, IN, DE, FR, BR, RU, TR), or custom list |
+| `-region` | `all` | Regional probe scope: `all` (US+JP+VN), `us`, `jp`, `vn` |
 | `-concurrency` | `5` | Maximum concurrent quests running in parallel (1–5) |
+| `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |
+| `-poll` | `60s` | Polling interval between quest checks when running in daemon mode |
 | `-portal` | `true` | Enable local LAN captcha web portal for headless environments |
 | `-portal-port` | `8080` | Port for captcha web portal (auto-increments if port is busy) |
 | `-spoofer` | `false` | Enable Win32 OS process emulation (requires Discord Desktop running) |

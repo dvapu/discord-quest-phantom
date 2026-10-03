@@ -32,6 +32,7 @@ type Config struct {
 	EnablePortal bool
 	PortalPort   int
 	Concurrency  int
+	Daemon       bool
 }
 
 // MaskToken returns a safe, redacted representation of the Discord token for logs.
@@ -137,10 +138,11 @@ func LoadConfig() (*Config, error) {
 	flag.BoolVar(&cfg.UseSpoofer, "spoofer", false, "Enable OS Process Spoofer mode (requires Discord Desktop running)")
 	flag.BoolVar(&cfg.KeepOpen, "keep-open", true, "Wait for keypress before exiting (prevents instant window closing on double-click)")
 	flag.StringVar(&cfg.Lang, "lang", "auto", "Language / Ngôn ngữ (auto, en, vi)")
-	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (fast US+JP+VN), full (12 countries), or codes (us,jp,vn,kr,cn,tw,in,de,fr,br,ru,tr)")
+	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (US+JP+VN), us, jp, vn")
 	flag.BoolVar(&cfg.EnablePortal, "portal", true, "Enable local captcha web portal for headless environments")
 	flag.IntVar(&cfg.PortalPort, "portal-port", 8080, "Port for local captcha web portal")
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")
+	flag.BoolVar(&cfg.Daemon, "daemon", false, "Run continuously as a background daemon/service, re-checking quests periodically")
 
 	// Internal stub mode flags (used when spawned as a spoofed game process)
 	flag.BoolVar(&cfg.RunStub, "stub", false, "Internal stub mode: run as dummy game process")
