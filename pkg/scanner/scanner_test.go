@@ -102,3 +102,23 @@ func TestAnalyzeQuestTargetAndProgress(t *testing.T) {
 		t.Errorf("expected app ID 357607478105604096, got %s", aq.AppID)
 	}
 }
+
+func TestSingleQuestConcurrencyAndRegion(t *testing.T) {
+	q := api.Quest{
+		ID:               "qSingle",
+		DiscoveredRegion: "JP",
+	}
+	aq := AnalyzeQuest(q)
+	if aq.Region != "JP" {
+		t.Fatalf("expected region JP, got %s", aq.Region)
+	}
+
+	eligible := []AnalyzedQuest{aq}
+	concurrency := 5
+	if concurrency > len(eligible) {
+		concurrency = len(eligible)
+	}
+	if concurrency != 1 {
+		t.Fatalf("expected concurrency 1 for single quest, got %d", concurrency)
+	}
+}

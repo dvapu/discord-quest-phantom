@@ -228,60 +228,84 @@ func runAPIRunnerLoop(ctx context.Context, cfg *config.Config, client *api.Clien
 		return nil
 	}
 
+	// Group eligible quests by Region to process region batches cleanly
+	// Quests belonging to the same region are executed in parallel up to concurrency.
+	// Only when that region finishes does it proceed to the next region.
+	regionBuckets := make(map[string][]scanner.AnalyzedQuest)
+	var regionOrder []string
+	for _, q := range eligible {
+		reg := q.Region
+		if reg == "" {
+			reg = "GLOBAL"
+		}
+		if _, exists := regionBuckets[reg]; !exists {
+			regionOrder = append(regionOrder, reg)
+		}
+		regionBuckets[reg] = append(regionBuckets[reg], q)
+	}
+
 	fmt.Printf(i18n.M().FoundEligibleQuests, len(eligible))
-	for i, q := range eligible {
-		rem := float64(q.TargetSec) - q.CurrentSec
-		if rem < 0 {
-			rem = 0
-		}
-		remStr := fmt.Sprintf(i18n.M().RemainingQuestSec, rem, q.TargetSec)
-		fmt.Printf("    %d. %-26s | %-24s | %s\n",
-			i+1, q.Title, q.Category.Localized(), remStr)
-	}
-
-	concurrency := cfg.Concurrency
-	if concurrency <= 0 {
-		concurrency = 5
-	}
-	if concurrency > len(eligible) {
-		concurrency = len(eligible)
-	}
-
-	fmt.Printf(i18n.M().ConcurrentHeader, len(eligible), concurrency)
-
-	sem := make(chan struct{}, concurrency)
-	var wg sync.WaitGroup
-
-	for i, q := range eligible {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
+	totalProcessed := 0
+	for _, reg := range regionOrder {
+		bucket := regionBuckets[reg]
+		fmt.Printf("\n[🌐] --- Region [%s] Batch (%d quests) ---\n", reg, len(bucket))
+		for i, q := range bucket {
+			rem := float64(q.TargetSec) - q.CurrentSec
+			if rem < 0 {
+				rem = 0
+			}
+			remStr := fmt.Sprintf(i18n.M().RemainingQuestSec, rem, q.TargetSec)
+			fmt.Printf("    %d. [%s] %-24s | %-22s | %s\n",
+				i+1, reg, q.Title, q.Category.Localized(), remStr)
 		}
 
-		sem <- struct{}{}
-		wg.Add(1)
+		concurrency := cfg.Concurrency
+		if concurrency <= 0 {
+			concurrency = 5
+		}
+		if concurrency > len(bucket) {
+			concurrency = len(bucket)
+		}
 
-		go func(idx int, quest scanner.AnalyzedQuest) {
-			defer func() {
-				<-sem
-				wg.Done()
-			}()
+		fmt.Printf(i18n.M().ConcurrentHeader, len(bucket), concurrency)
 
-			// Stagger start by 2.5s per concurrent lane to prevent API request bursts
-			laneDelay := time.Duration(idx%concurrency) * 2500 * time.Millisecond
+		sem := make(chan struct{}, concurrency)
+		var wg sync.WaitGroup
+
+		for i, q := range bucket {
 			select {
 			case <-ctx.Done():
-				return
-			case <-time.After(laneDelay):
+				return ctx.Err()
+			default:
 			}
 
-			processOneQuest(ctx, client, quest, idx, len(eligible))
-		}(i+1, q)
+			sem <- struct{}{}
+			wg.Add(1)
+
+			go func(idx int, quest scanner.AnalyzedQuest) {
+				defer func() {
+					<-sem
+					wg.Done()
+				}()
+
+				// Stagger start by 2.5s per concurrent lane to prevent API request bursts
+				laneDelay := time.Duration((idx-1)%concurrency) * 2500 * time.Millisecond
+				select {
+				case <-ctx.Done():
+					return
+				case <-time.After(laneDelay):
+				}
+
+				processOneQuest(ctx, client, quest, idx, len(bucket))
+			}(i+1, q)
+		}
+
+		wg.Wait()
+		totalProcessed += len(bucket)
+		fmt.Printf("[✓] Region [%s] Batch Complete!\n", reg)
 	}
 
-	wg.Wait()
-	fmt.Printf(i18n.M().AllQuestsDone, len(eligible))
+	fmt.Printf(i18n.M().AllQuestsDone, totalProcessed)
 	return nil
 }
 

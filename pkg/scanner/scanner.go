@@ -66,14 +66,20 @@ type AnalyzedQuest struct {
 	State      QuestState
 	IsExpired  bool
 	ExpiresAt  string
+	Region     string
 }
 
 // AnalyzeQuest inspects an api.Quest and classifies its state and primary requirement.
 func AnalyzeQuest(q api.Quest) AnalyzedQuest {
+	reg := q.DiscoveredRegion
+	if reg == "" {
+		reg = "US"
+	}
 	aq := AnalyzedQuest{
 		Quest:     q,
 		ID:        q.ID,
 		Title:     extractTitle(q),
+		Region:    reg,
 		State:     StateAvailable,
 		Category:  CategoryUnknown,
 		ExpiresAt: q.Config.ExpiresAt,
@@ -278,10 +284,10 @@ func FormatQuestTable(quests []AnalyzedQuest) string {
 	sb.WriteString(fmt.Sprintf(i18n.M().TableInventory, len(quests)))
 	sb.WriteString(fmt.Sprintf(i18n.M().TableBreakdown,
 		claimed, completed, enrolled, available, expired))
-	sb.WriteString(strings.Repeat("-", 108) + "\n")
-	sb.WriteString(fmt.Sprintf("%-19s | %-24s | %-24s | %-14s | %-9s | %s\n",
-		i18n.M().TableHeaderID, i18n.M().TableHeaderTitle, i18n.M().TableHeaderCategory, i18n.M().TableHeaderTaskType, i18n.M().TableHeaderProgress, i18n.M().TableHeaderState))
-	sb.WriteString(strings.Repeat("-", 108) + "\n")
+	sb.WriteString(strings.Repeat("-", 116) + "\n")
+	sb.WriteString(fmt.Sprintf("%-19s | %-6s | %-24s | %-24s | %-14s | %-9s | %s\n",
+		i18n.M().TableHeaderID, "REGION", i18n.M().TableHeaderTitle, i18n.M().TableHeaderCategory, i18n.M().TableHeaderTaskType, i18n.M().TableHeaderProgress, i18n.M().TableHeaderState))
+	sb.WriteString(strings.Repeat("-", 116) + "\n")
 
 	for _, q := range quests {
 		progressStr := fmt.Sprintf("%.0fs / %ds", q.CurrentSec, q.TargetSec)
@@ -296,10 +302,14 @@ func FormatQuestTable(quests []AnalyzedQuest) string {
 		if len([]rune(cat)) > 24 {
 			cat = string([]rune(cat)[:21]) + "..."
 		}
-		sb.WriteString(fmt.Sprintf("%-19s | %-24s | %-24s | %-14s | %-9s | %s\n",
-			q.ID, title, cat, q.TaskType, progressStr, q.State))
+		reg := q.Region
+		if reg == "" {
+			reg = "US"
+		}
+		sb.WriteString(fmt.Sprintf("%-19s | %-6s | %-24s | %-24s | %-14s | %-9s | %s\n",
+			q.ID, "["+reg+"]", title, cat, q.TaskType, progressStr, q.State))
 	}
-	sb.WriteString(strings.Repeat("-", 108) + "\n")
+	sb.WriteString(strings.Repeat("-", 116) + "\n")
 
 	return sb.String()
 }

@@ -23,6 +23,7 @@ type Quest struct {
 	UserStatus            *UserStatus  `json:"user_status"`
 	TrafficMetadataRaw    *string      `json:"traffic_metadata_raw"`
 	TrafficMetadataSealed *string      `json:"traffic_metadata_sealed"`
+	DiscoveredRegion      string       `json:"discovered_region,omitempty"`
 }
 
 // QuestConfig contains campaign metadata, timeframes, and task specifications.

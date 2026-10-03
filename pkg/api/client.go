@@ -343,6 +343,7 @@ func (c *Client) FetchQuestsWithLocale(ctx context.Context, locale, timezone str
 // FetchQuestsMultiRegion discovers quests across multiple regions (e.g. US, JP, VN) and deduplicates them.
 func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) ([]Quest, error) {
 	type targetLocale struct {
+		code     string
 		locale   string
 		timezone string
 	}
@@ -419,40 +420,40 @@ func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) (
 	}
 
 	if wantUS {
-		targets = append(targets, targetLocale{locale: "en-US", timezone: "America/New_York"})
+		targets = append(targets, targetLocale{code: "US", locale: "en-US", timezone: "America/New_York"})
 	}
 	if wantJP {
-		targets = append(targets, targetLocale{locale: "ja-JP", timezone: "Asia/Tokyo"})
+		targets = append(targets, targetLocale{code: "JP", locale: "ja-JP", timezone: "Asia/Tokyo"})
 	}
 	if wantVN {
-		targets = append(targets, targetLocale{locale: "vi-VN", timezone: "Asia/Ho_Chi_Minh"})
+		targets = append(targets, targetLocale{code: "VN", locale: "vi-VN", timezone: "Asia/Ho_Chi_Minh"})
 	}
 	if wantKR {
-		targets = append(targets, targetLocale{locale: "ko-KR", timezone: "Asia/Seoul"})
+		targets = append(targets, targetLocale{code: "KR", locale: "ko-KR", timezone: "Asia/Seoul"})
 	}
 	if wantCN {
-		targets = append(targets, targetLocale{locale: "zh-CN", timezone: "Asia/Shanghai"})
+		targets = append(targets, targetLocale{code: "CN", locale: "zh-CN", timezone: "Asia/Shanghai"})
 	}
 	if wantTW {
-		targets = append(targets, targetLocale{locale: "zh-TW", timezone: "Asia/Taipei"})
+		targets = append(targets, targetLocale{code: "TW", locale: "zh-TW", timezone: "Asia/Taipei"})
 	}
 	if wantIN {
-		targets = append(targets, targetLocale{locale: "en-IN", timezone: "Asia/Kolkata"})
+		targets = append(targets, targetLocale{code: "IN", locale: "en-IN", timezone: "Asia/Kolkata"})
 	}
 	if wantDE {
-		targets = append(targets, targetLocale{locale: "de-DE", timezone: "Europe/Berlin"})
+		targets = append(targets, targetLocale{code: "DE", locale: "de-DE", timezone: "Europe/Berlin"})
 	}
 	if wantFR {
-		targets = append(targets, targetLocale{locale: "fr-FR", timezone: "Europe/Paris"})
+		targets = append(targets, targetLocale{code: "FR", locale: "fr-FR", timezone: "Europe/Paris"})
 	}
 	if wantBR {
-		targets = append(targets, targetLocale{locale: "pt-BR", timezone: "America/Sao_Paulo"})
+		targets = append(targets, targetLocale{code: "BR", locale: "pt-BR", timezone: "America/Sao_Paulo"})
 	}
 	if wantRU {
-		targets = append(targets, targetLocale{locale: "ru-RU", timezone: "Europe/Moscow"})
+		targets = append(targets, targetLocale{code: "RU", locale: "ru-RU", timezone: "Europe/Moscow"})
 	}
 	if wantTR {
-		targets = append(targets, targetLocale{locale: "tr-TR", timezone: "Europe/Istanbul"})
+		targets = append(targets, targetLocale{code: "TR", locale: "tr-TR", timezone: "Europe/Istanbul"})
 	}
 
 	seen := make(map[string]bool)
@@ -470,6 +471,7 @@ func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) (
 			for _, q := range quests {
 				if !seen[q.ID] {
 					seen[q.ID] = true
+					q.DiscoveredRegion = t.code
 					aggregated = append(aggregated, q)
 				}
 			}
