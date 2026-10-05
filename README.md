@@ -1,9 +1,10 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.1
+# 👻 Discord Quest Phantom v1.1.0
 ### *Autonomous Cross-Platform Quest Completer for Windows & Linux (x64 / ARM64)*
 
-[![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
+[![Latest Release: v1.1.0](https://img.shields.io/badge/Release-v1.1.0%20(Stable)-7289da?style=flat-square&logo=github)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.0)
+[![Nightly Build: v1.1.1](https://img.shields.io/badge/Nightly-v1.1.1%20(Pre--release)-f39c12?style=flat-square&logo=github)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.1)
 [![Build & Release](https://img.shields.io/github/actions/workflow/status/dvapu/discord-quest-phantom/release.yml?style=flat-square)](https://github.com/dvapu/discord-quest-phantom/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20(x64%2C%20ARM64)-blue.svg?style=flat-square)]()
@@ -25,35 +26,36 @@
 ---
 
 ```
-                        ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.1           │
-                        │   Multi-Region Sweep · Parallel Engine · Captcha Portal │
-                        └───────────────────────────┬────────────────────────────┘
-                                                    │
-                                     Core System Orchestrator
-                                                    │
-                ┌───────────────────────────────────┼───────────────────────────────────┐
-                ▼                                   ▼                                   ▼
-    [1. MULTI-REGION SWEEP]             [2. PARALLEL RUNNER (DEFAULT)]        [3. LOCAL CAPTCHA PORTAL]
-  - Probes US, JP & VN locales       - Concurrently runs 2-5 quests       - Auto LAN IP & port detection
-  - Spoofs X-Super-Properties        - Staggered API request jitter       - Mobile 1-tap hCaptcha/Turnstile
-  - Reveals hidden avatar frames     - 5 games in 15 mins (not 75 mins!)  - Zero SSH/headless lockouts
-                │                                   │                                   │
-                └───────────────────────────────────┴───────────────────────────────────┘
-                                                    │
-                                 Dual-Engine Execution Layer
-                                                    │
-                ┌───────────────────────────────────┴───────────────────────────────────┐
-                ▼                                                                       ▼
-   [ENGINE 1: AUTONOMOUS API RUNNER]                                       [ENGINE 2: OS PROCESS SPOOFER]
-  - 100% Headless (Windows, Linux, Armbian, VPS)                        - For users running Discord Desktop
-  - NO browser or Discord app required                                  - Concurrently spawns dummy game stubs
-  - Auto video playback & synthetic stream frames                       - Discord Desktop broadcasts Gateway status
+          ┌─────────────────────────────────────────────────────────────┐
+          │                    DISCORD QUEST PHANTOM                    │
+          │             v1.1.0 (Stable)  ·  v1.1.1 (Nightly)            │
+          │    Multi-Region Sweep · Parallel Engine · Captcha Portal    │
+          └──────────────────────────────┬──────────────────────────────┘
+                                         │
+                              Core System Orchestrator
+                                         │
+             ┌───────────────────────────┼───────────────────────────┐
+             ▼                           ▼                           ▼
+  [1. MULTI-REGION SWEEP]      [2. PARALLEL RUNNER]     [3. LOCAL CAPTCHA PORTAL]
+  - Probes US, JP, VN zones   - Runs 2-5 quests parallel - Auto LAN IP & port scan
+  - Spoofs client properties  - Staggered request jitter - Mobile 1-tap web solver
+  - Unlocks hidden rewards    - 5 games in 15m (not 75m) - Zero SSH/headless locks
+             │                           │                           │
+             └───────────────────────────┴───────────────────────────┘
+                                         │
+                            Dual-Engine Execution Layer
+                                         │
+                    ┌────────────────────┬────────────────────┐
+                    ▼                                         ▼
+    [ENGINE 1: AUTONOMOUS API RUNNER]          [ENGINE 2: OS PROCESS SPOOFER]
+  - 100% Headless (Linux, VPS, Armbian)    - For users running Discord Desktop app
+  - Zero browser or Discord app required   - Concurrently spawns dummy game stubs
+  - Auto video progress & stream heartbeat - Broadcasts native Gateway status
 ```
 
 ---
 
-## 🚀 Key Highlights & New Capabilities in v1.1.1
+## 🚀 Key Highlights & Capabilities (v1.1.0 Stable · v1.1.1 Nightly)
 
 1. **🌍 Golden Trio Multi-Region Auto-Scan (`--region all`)**:
    - Discord region-locks exclusive avatar decorations and quests by evaluating `client_locale` / `system_locale` (why changing iPhone locale unlocks hidden quests).
@@ -106,22 +108,23 @@ Discord Quests come in multiple task structures. Discord Quest Phantom categoriz
 ## ⚡ 2. Setup & Execution
 
 ### For Windows:
-1. Download `discord-quest-phantom-windows-amd64.zip` from [Releases](https://github.com/dvapu/discord-quest-phantom/releases).
+1. Download `discord-quest-phantom-windows-amd64.zip` from [Releases (v1.1.0 Stable)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.0) or [Nightly Build (v1.1.1)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.1).
 2. Extract the archive into any folder.
 3. Double-click `run.cmd` or `discord-quest-phantom.exe`:
    - If `.token` is missing, the program will interactively prompt you to paste your token, save it automatically, and start immediately!
    - No Python installation needed, no dependencies required, no Discord client needed!
 
 ### For Linux / VPS / Armbian / Raspberry Pi (24/7 Background Daemon):
-Run this single command to download the standalone binary and start 24/7 background execution:
+Run this single command to download the standalone binary (v1.1.0 Stable) and start 24/7 background execution:
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.1/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &
 ```
+> 💡 *Note: To test bleeding-edge Nightly features, replace `v1.1.0` with `v1.1.1` in the curl command above.*
 
 #### Running as a Systemd Service (Auto-start on Boot):
 Create `/etc/systemd/system/discord-quest-phantom.service`:

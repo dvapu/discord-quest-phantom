@@ -1,9 +1,10 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.1
+# 👻 Discord Quest Phantom v1.1.0
 ### *Công cụ tự động hoàn thành Discord Quest đa nền tảng cho Windows & Linux (x64 / ARM64)*
 
-[![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
+[![Bản Ổn Định: v1.1.0](https://img.shields.io/badge/Bản%20Ổn%20Định-v1.1.0%20(Stable)-7289da?style=flat-square&logo=github)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.0)
+[![Bản Nightly: v1.1.1](https://img.shields.io/badge/Bản%20Nightly-v1.1.1%20(Pre--release)-f39c12?style=flat-square&logo=github)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.1)
 [![Build & Release](https://img.shields.io/github/actions/workflow/status/dvapu/discord-quest-phantom/release.yml?style=flat-square)](https://github.com/dvapu/discord-quest-phantom/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](../../LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20(x64%2C%20ARM64)-blue.svg?style=flat-square)]()
@@ -25,35 +26,36 @@
 ---
 
 ```
-                        ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.1           │
-                        │   Quét Đa Vùng · Chạy Song Song · Cổng Giải Captcha    │
-                        └───────────────────────────┬────────────────────────────┘
-                                                    │
-                                     Bộ Điều Phối Trung Tâm
-                                                    │
-                ┌───────────────────────────────────┼───────────────────────────────────┐
-                ▼                                   ▼                                   ▼
-    [1. QUÉT ĐA VÙNG (MULTI-REGION)]    [2. CHẠY SONG SONG (PARALLEL)]        [3. CỔNG CAPTCHA NỘI BỘ]
-  - Quét đồng thời US, JP và VN      - Chạy đồng thời 2-5 quest           - Tự dò IP LAN & tự đổi port
-  - Giả lập X-Super-Properties       - Tạo độ trễ ngẫu nhiên (Jitter)     - 1 chạm trên điện thoại iPhone
-  - Mở khóa khung avatar bị ẩn       - Hoàn thành 5 game trong 15 phút!   - Cứu cánh server SSH Linux
-                │                                   │                                   │
-                └───────────────────────────────────┴───────────────────────────────────┘
-                                                    │
-                                  2 Động Cơ Thực Thi Độc Lập
-                                                    │
-                ┌───────────────────────────────────┴───────────────────────────────────┐
-                ▼                                                                       ▼
-   [ĐỘNG CƠ 1: AUTONOMOUS API RUNNER - MẶC ĐỊNH]                           [ĐỘNG CƠ 2: WIN32 OS SPOOFER]
-  - Chạy Headless (Windows, Linux, Armbian, VPS)                        - Dành cho người muốn mở Discord Desktop
-  - KHÔNG CẦN mở app Discord hay trình duyệt                            - Tạo đồng thời nhiều game ảo song song
-  - Tự động bỏ qua popup chọn nền tảng game                             - Discord Desktop nhận diện gửi Gateway
+          ┌─────────────────────────────────────────────────────────────┐
+          │                    DISCORD QUEST PHANTOM                    │
+          │         v1.1.0 (Bản Ổn Định) · v1.1.1 (Bản Nightly)         │
+          │      Quét Đa Vùng · Chạy Song Song · Cổng Giải Captcha      │
+          └──────────────────────────────┬──────────────────────────────┘
+                                         │
+                          Bộ Điều Phối Hệ Thống Trung Tâm
+                                         │
+             ┌───────────────────────────┼───────────────────────────┐
+             ▼                           ▼                           ▼
+    [1. QUÉT ĐA VÙNG]          [2. CHẠY SONG SONG]        [3. CỔNG GIẢI CAPTCHA]
+  - Quét US, JP và VN        - Chạy song song 2-5 quest - Tự dò IP LAN & đổi port
+  - Giả lập Super-Properties - Tạo độ trễ jitter ngẫu   - 1 chạm trên iPhone/web
+  - Mở khóa avatar bị ẩn     - 5 game chỉ mất 15 phút!  - Cứu cánh server SSH VPS
+             │                           │                           │
+             └───────────────────────────┴───────────────────────────┘
+                                         │
+                            2 Động Cơ Thực Thi Độc Lập
+                                         │
+                    ┌────────────────────┬────────────────────┐
+                    ▼                                         ▼
+    [ĐỘNG CƠ 1: AUTONOMOUS API RUNNER]         [ĐỘNG CƠ 2: OS PROCESS SPOOFER]
+  - 100% Headless (Linux, VPS, Armbian)    - Dành cho người mở Discord Desktop app
+  - KHÔNG CẦN mở app hay trình duyệt       - Tạo đồng thời nhiều tiến trình ảo
+  - Tự gửi heartbeat & video tiến trình    - Discord Desktop nhận diện gửi Gateway
 ```
 
 ---
 
-## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.1
+## 🚀 Các Tính Năng Đột Phá (v1.1.0 Bản Ổn Định · v1.1.1 Bản Nightly)
 
 1. **🌍 Quét Đa Vùng Bộ Ba Vàng Tự Động (`--region all`)**:
    - Khắc phục triệt để tình trạng nhiệm vụ và khung viền Avatar bị ẩn tại Việt Nam.
@@ -103,22 +105,23 @@
 ## ⚡ 2. Hướng Dẫn Cài Đặt & Khởi Chạy
 
 ### Cho Người Dùng Windows:
-1. Tải bản nén `discord-quest-phantom-windows-amd64.zip` từ mục [Releases](https://github.com/dvapu/discord-quest-phantom/releases).
+1. Tải bản nén `discord-quest-phantom-windows-amd64.zip` từ mục [Releases (v1.1.0 Bản Ổn Định)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.0) hoặc [Bản Nightly (v1.1.1)](https://github.com/dvapu/discord-quest-phantom/releases/tag/v1.1.1).
 2. Giải nén vào thư mục bất kỳ.
 3. Nhấp đúp vào `run.cmd` hoặc `discord-quest-phantom.exe`:
    - Nếu chưa có file `.token`, chương trình sẽ tự động mở hộp thoại yêu cầu bạn dán token và tự động lưu.
    - Không cần cài Python, không phụ thuộc Discord Desktop!
 
 ### Cho Người Dùng Linux / VPS / Armbian / Raspberry Pi (Chạy Ngầm 24/7):
-Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build tĩnh phù hợp với kiến trúc CPU và chạy ngầm liên tục:
+Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build tĩnh (v1.1.0 Bản Ổn Định) phù hợp với kiến trúc CPU và chạy ngầm liên tục:
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.1/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &
 ```
+> 💡 *Lưu ý: Để trải nghiệm tính năng mới nhất từ bản Nightly, thay `v1.1.0` thành `v1.1.1` trong dòng lệnh tải về.*
 
 #### Thiết Lập Dịch Vụ Systemd (Tự Khởi Động Khi Bật Máy):
 Tạo file `/etc/systemd/system/discord-quest-phantom.service`:
