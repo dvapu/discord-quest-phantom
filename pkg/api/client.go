@@ -167,7 +167,7 @@ func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Referer", "https://discord.com/channels/@me")
 }
 
-// handleRateLimit checks for HTTP 429 and parses retry duration.
+// parseRetryAfter parses the retry duration from a 429 response.
 func parseRetryAfter(resp *http.Response, bodyBytes []byte) time.Duration {
 	var rl RateLimitResponse
 	if err := json.Unmarshal(bodyBytes, &rl); err == nil && rl.RetryAfter > 0 {
@@ -181,6 +181,35 @@ func parseRetryAfter(resp *http.Response, bodyBytes []byte) time.Duration {
 	}
 
 	return 5 * time.Second
+}
+
+// terminalQuestStatuses are Discord statuses that can never succeed on retry
+// because the quest campaign itself is done (ended, claimed, or removed).
+var terminalQuestStatuses = map[int]bool{
+	http.StatusNotFound:            true, // 404 - quest no longer exists
+	http.StatusGone:                true, // 410 - campaign ended
+	http.StatusForbidden:           true, // 403 - no longer eligible / unenrolled
+	http.StatusUnprocessableEntity: true, // 422 - quest closed for submissions
+}
+
+// classifyQuestFailure converts a non-retryable quest response into a typed
+// error so the runner can drop the quest quietly instead of hammering it.
+func classifyQuestFailure(status int, bodyBytes []byte, questID string) error {
+	if terminalQuestStatuses[status] {
+		return &QuestExpiredError{QuestID: questID, Status: status, Detail: truncateBody(bodyBytes)}
+	}
+	return nil
+}
+
+// truncateBody keeps error messages readable in the console.
+func truncateBody(bodyBytes []byte) string {
+	const max = 180
+	s := strings.TrimSpace(string(bodyBytes))
+	s = strings.Join(strings.Fields(s), " ")
+	if len(s) > max {
+		return s[:max] + "..."
+	}
+	return s
 }
 
 // ValidateToken verifies authentication and retrieves current account identity.
@@ -491,7 +520,11 @@ func (c *Client) EnrollQuestWithCaptcha(ctx context.Context, quest Quest, captch
 			}
 		}
 
-		return fmt.Errorf("enroll failed: HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+		if err := classifyQuestFailure(resp.StatusCode, bodyBytes, quest.ID); err != nil {
+			return err
+		}
+
+		return fmt.Errorf("enroll failed: HTTP %d: %s", resp.StatusCode, truncateBody(bodyBytes))
 	}
 
 	return fmt.Errorf("exceeded max retries enrolling quest %s", quest.ID)
@@ -547,7 +580,11 @@ func (c *Client) SendVideoProgress(ctx context.Context, questID string, timestam
 			return &update, nil
 		}
 
-		return nil, fmt.Errorf("video progress failed: HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+		if err := classifyQuestFailure(resp.StatusCode, bodyBytes, questID); err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("video progress failed: HTTP %d: %s", resp.StatusCode, truncateBody(bodyBytes))
 	}
 
 	return nil, fmt.Errorf("exceeded max retries for video progress on quest %s", questID)
@@ -601,7 +638,11 @@ func (c *Client) SendHeartbeat(ctx context.Context, questID string, streamKey st
 			return &update, nil
 		}
 
-		return nil, fmt.Errorf("heartbeat failed: HTTP %d: %s", resp.StatusCode, string(bodyBytes))
+		if err := classifyQuestFailure(resp.StatusCode, bodyBytes, questID); err != nil {
+			return nil, err
+		}
+
+		return nil, fmt.Errorf("heartbeat failed: HTTP %d: %s", resp.StatusCode, truncateBody(bodyBytes))
 	}
 
 	return nil, fmt.Errorf("exceeded max retries for heartbeat on quest %s", questID)

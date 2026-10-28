@@ -198,17 +198,20 @@ func AnalyzeAll(rawQuests []api.Quest) []AnalyzedQuest {
 }
 
 // AutoEnrollPending automatically enrolls into all un-enrolled active quests.
-func AutoEnrollPending(ctx context.Context, client *api.Client, quests []AnalyzedQuest, enablePortal bool, portalPort int) (int, error) {
+// When quiet is true, per-quest progress lines are suppressed (daemon mode).
+func AutoEnrollPending(ctx context.Context, client *api.Client, quests []AnalyzedQuest, enablePortal bool, portalPort int, quiet bool) (int, error) {
 	enrolledCount := 0
 	for _, q := range quests {
 		if q.State != StateAvailable || q.IsExpired {
 			continue
 		}
 
-		if i18n.GetLanguage() == i18n.LangVI {
-			fmt.Printf(" [Tự Động Nhận] Đang tham gia quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
-		} else {
-			fmt.Printf(" [Auto-Enroll] Enrolling in quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
+		if !quiet {
+			if i18n.GetLanguage() == i18n.LangVI {
+				fmt.Printf(" [Tự Động Nhận] Đang tham gia quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
+			} else {
+				fmt.Printf(" [Auto-Enroll] Enrolling in quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
+			}
 		}
 		err := client.EnrollQuest(ctx, q.Quest)
 		if err != nil {
@@ -243,6 +246,11 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 				continue
 			}
 
+			if errors.Is(err, api.ErrQuestExpired) {
+				fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+				continue
+			}
+
 			if i18n.GetLanguage() == i18n.LangVI {
 				fmt.Printf(" [Tự Động Nhận] Cảnh báo: không thể nhận quest %s: %v\n", q.Title, err)
 			} else {
@@ -262,7 +270,9 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 }
 
 // FormatQuestTable returns a clean CLI overview of quests with categories.
-func FormatQuestTable(quests []AnalyzedQuest) string {
+// Expired quests are collapsed into a single summary line by default so that a
+// long-idle account cannot flood the console with dead campaigns.
+func FormatQuestTable(quests []AnalyzedQuest, showExpired bool) string {
 	var sb strings.Builder
 
 	var claimed, completed, enrolled, available, expired int
@@ -289,7 +299,12 @@ func FormatQuestTable(quests []AnalyzedQuest) string {
 		i18n.M().TableHeaderID, "REGION", i18n.M().TableHeaderTitle, i18n.M().TableHeaderCategory, i18n.M().TableHeaderTaskType, i18n.M().TableHeaderProgress, i18n.M().TableHeaderState))
 	sb.WriteString(strings.Repeat("-", 116) + "\n")
 
+	hiddenExpired := 0
 	for _, q := range quests {
+		if q.State == StateExpired && !showExpired {
+			hiddenExpired++
+			continue
+		}
 		progressStr := fmt.Sprintf("%.0fs / %ds", q.CurrentSec, q.TargetSec)
 		if q.TargetSec == 0 {
 			progressStr = "N/A"
@@ -311,5 +326,26 @@ func FormatQuestTable(quests []AnalyzedQuest) string {
 	}
 	sb.WriteString(strings.Repeat("-", 116) + "\n")
 
+	if hiddenExpired > 0 {
+		sb.WriteString(fmt.Sprintf(i18n.M().TableExpiredNotice, hiddenExpired))
+	}
+
+	return sb.String()
+}
+
+// TableSignature produces a stable fingerprint of the quest inventory state so
+// long-running daemons can skip re-printing an unchanged table every cycle.
+func TableSignature(quests []AnalyzedQuest) string {
+	var sb strings.Builder
+	for _, q := range quests {
+		sb.WriteString(q.ID)
+		sb.WriteByte(':')
+		sb.WriteString(string(q.State))
+		sb.WriteByte(':')
+		sb.WriteString(fmt.Sprintf("%.0f", q.CurrentSec))
+		sb.WriteByte(':')
+		sb.WriteString(fmt.Sprintf("%d", q.TargetSec))
+		sb.WriteByte('|')
+	}
 	return sb.String()
 }

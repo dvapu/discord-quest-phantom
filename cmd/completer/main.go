@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -23,7 +24,24 @@ import (
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
-var Version = "1.1.1"
+var Version = "1.1.2"
+
+// lastInventorySignature remembers the previous scan fingerprint so daemon
+// mode can stay silent while nothing changes.
+var lastInventorySignature string
+
+// exitCode lets deferred cleanup report failure after the window is kept open.
+var exitCode int
+
+// hasEnrollable reports whether any quest still needs (re-)enrollment.
+func hasEnrollable(quests []scanner.AnalyzedQuest) bool {
+	for _, q := range quests {
+		if q.State == scanner.StateAvailable && !q.IsExpired {
+			return true
+		}
+	}
+	return false
+}
 
 func main() {
 	cfg, err := config.LoadConfig()
@@ -46,6 +64,9 @@ func main() {
 	defer func() {
 		if cfg.KeepOpen {
 			promptExit(false)
+		}
+		if exitCode != 0 {
+			os.Exit(exitCode)
 		}
 	}()
 
@@ -100,6 +121,10 @@ func main() {
 	user, err := apiClient.ValidateToken(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, i18n.M().AuthFailed, err)
+		// A bad/expired token is a hard failure: exit non-zero so run.cmd can
+		// report it clearly instead of printing "Finished successfully".
+		fmt.Fprintln(os.Stderr, i18n.M().AuthFailedHint)
+		exitCode = 1
 		return
 	}
 
@@ -150,11 +175,18 @@ func fetchQuests(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 }
 
 func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client) {
+	// In daemon mode, suppress the verbose scan/table output when the inventory
+	// is byte-identical to the previous cycle. This prevents an idle 24/7
+	// instance (or one whose quests all expired) from scrolling endlessly.
+	quiet := cfg.Daemon && !cfg.Debug
+
 	// 4. Discover Quests (with Multi-Region / Locale Sweep)
-	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
-		fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
-	} else {
-		fmt.Println(i18n.M().DiscoveringQuests)
+	if !quiet {
+		if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
+			fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
+		} else {
+			fmt.Println(i18n.M().DiscoveringQuests)
+		}
 	}
 
 	rawQuests, err := fetchQuests(ctx, cfg, apiClient)
@@ -162,17 +194,25 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 		fmt.Fprintf(os.Stderr, i18n.M().FailedRetrieveQuests, err)
 		return
 	}
-	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
+	if !quiet && (cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "") {
 		fmt.Printf(i18n.M().RegionScanDone, len(rawQuests))
 	}
 
 	analyzedQuests := scanner.AnalyzeAll(rawQuests)
-	fmt.Print(scanner.FormatQuestTable(analyzedQuests))
+	sig := scanner.TableSignature(analyzedQuests)
+	inventoryChanged := sig != lastInventorySignature
+	lastInventorySignature = sig
+
+	if !quiet || inventoryChanged {
+		fmt.Print(scanner.FormatQuestTable(analyzedQuests, cfg.Debug))
+	}
 
 	// 5. Auto-Enrollment (if enabled and not dry-run)
 	if cfg.AutoAccept && !cfg.DryRun {
-		fmt.Println(i18n.M().AutoEnrollHeader)
-		enrolled, err := scanner.AutoEnrollPending(ctx, apiClient, analyzedQuests, cfg.EnablePortal, cfg.PortalPort)
+		if !quiet || hasEnrollable(analyzedQuests) {
+			fmt.Println(i18n.M().AutoEnrollHeader)
+		}
+		enrolled, err := scanner.AutoEnrollPending(ctx, apiClient, analyzedQuests, cfg.EnablePortal, cfg.PortalPort, quiet)
 		if err != nil {
 			fmt.Printf(i18n.M().AutoEnrollError, err)
 		} else if enrolled > 0 {
@@ -184,8 +224,9 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 				return
 			}
 			analyzedQuests = scanner.AnalyzeAll(rawQuests)
-			fmt.Print(scanner.FormatQuestTable(analyzedQuests))
-		} else {
+			lastInventorySignature = scanner.TableSignature(analyzedQuests)
+			fmt.Print(scanner.FormatQuestTable(analyzedQuests, cfg.Debug))
+		} else if !quiet {
 			fmt.Println(i18n.M().AutoEnrollAllEnrolled)
 		}
 	}
@@ -369,11 +410,20 @@ func processOneQuest(ctx context.Context, client *api.Client, q scanner.Analyzed
 	}
 
 	if err != nil {
-		if ctx.Err() == nil {
+		if ctx.Err() == nil && !errors.Is(err, api.ErrQuestExpired) {
 			fmt.Printf(i18n.M().QuestErrorSkip, q.Title, err)
 		}
 	}
 }
+
+// Progress loops must never spin forever when Discord keeps rejecting a quest.
+// These guards stop the "endless error spam" that happened when a quest expired
+// while the tool was idle: no progress advance -> abort with one clear line.
+const (
+	maxConsecutiveErrors = 5
+	progressStallTimeout = 3 * time.Minute
+	maxErrorBackoff      = 30 * time.Second
+)
 
 func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest) error {
 	secondsNeeded := float64(q.TargetSec)
@@ -394,11 +444,19 @@ func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.Analyze
 	const maxFuture = 10.0
 	const speed = 7.0
 
+	consecutiveErrors := 0
+	stallDeadline := time.Now().Add(progressStallTimeout)
+
 	for secondsDone < secondsNeeded {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+		}
+
+		if time.Now().After(stallDeadline) {
+			fmt.Printf(i18n.M().ProgressStallAbort, q.Title, secondsDone, secondsNeeded)
+			return api.ErrQuestExpired
 		}
 
 		maxAllowed := time.Since(enrolledTime).Seconds() + maxFuture
@@ -418,28 +476,76 @@ func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.Analyze
 
 			resp, err := client.SendVideoProgress(ctx, q.ID, sendVal)
 			if err != nil {
-				fmt.Printf(i18n.M().VideoProgressWarning, err)
-			} else {
-				secondsDone = targetTimestamp
-				fmt.Printf(i18n.M().VideoProgress, secondsDone, secondsNeeded, (secondsDone/secondsNeeded)*100.0)
-				if resp != nil && resp.CompletedAt != nil && *resp.CompletedAt != "" {
-					fmt.Printf(i18n.M().VideoCompleted, q.Title)
-					return nil
+				if errors.Is(err, api.ErrQuestExpired) {
+					fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+					return err
 				}
+				consecutiveErrors++
+				// Only surface the first failure and periodic heartbeats of it,
+				// so a flaky network cannot flood the terminal.
+				if consecutiveErrors == 1 || consecutiveErrors%10 == 0 {
+					fmt.Printf(i18n.M().VideoProgressWarning, err)
+				}
+				if consecutiveErrors >= maxConsecutiveErrors {
+					fmt.Printf(i18n.M().ProgressErrorAbort, q.Title, consecutiveErrors, err)
+					return err
+				}
+				if !sleepWithContext(ctx, errorBackoff(consecutiveErrors)) {
+					return ctx.Err()
+				}
+				continue
+			}
+
+			consecutiveErrors = 0
+			stallDeadline = time.Now().Add(progressStallTimeout)
+			secondsDone = targetTimestamp
+			fmt.Printf(i18n.M().VideoProgress, secondsDone, secondsNeeded, (secondsDone/secondsNeeded)*100.0)
+			if resp != nil && resp.CompletedAt != nil && *resp.CompletedAt != "" {
+				fmt.Printf(i18n.M().VideoCompleted, q.Title)
+				return nil
 			}
 		}
 
 		if timestamp >= secondsNeeded {
 			break
 		}
-		time.Sleep(1 * time.Second)
+		if !sleepWithContext(ctx, time.Second) {
+			return ctx.Err()
+		}
 	}
 
-	// Final progress update
-	_, _ = client.SendVideoProgress(ctx, q.ID, secondsNeeded)
+	// Final progress update — report failures instead of pretending success.
+	if _, err := client.SendVideoProgress(ctx, q.ID, secondsNeeded); err != nil {
+		if errors.Is(err, api.ErrQuestExpired) {
+			fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+			return err
+		}
+		fmt.Printf(i18n.M().VideoProgressWarning, err)
+		return err
+	}
 	fmt.Printf(i18n.M().VideoCompleted, q.Title)
 	return nil
 }
+
+// sleepWithContext waits for d, returning false if the context was cancelled.
+func sleepWithContext(ctx context.Context, d time.Duration) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case <-time.After(d):
+		return true
+	}
+}
+
+// errorBackoff grows the retry delay but stays bounded.
+func errorBackoff(consecutive int) time.Duration {
+	d := time.Duration(consecutive) * 2 * time.Second
+	if d > maxErrorBackoff {
+		d = maxErrorBackoff
+	}
+	return d
+}
+
 
 func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest) error {
 	secondsNeeded := float64(q.TargetSec)
@@ -450,6 +556,9 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 	rem := secondsNeeded - secondsDone
 	fmt.Printf(i18n.M().HeartbeatStart, q.Title, rem/60.0)
 
+	consecutiveErrors := 0
+	stallDeadline := time.Now().Add(progressStallTimeout)
+
 	for secondsDone < secondsNeeded {
 		select {
 		case <-ctx.Done():
@@ -457,10 +566,34 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 		default:
 		}
 
+		if time.Now().After(stallDeadline) {
+			fmt.Printf(i18n.M().ProgressStallAbort, q.Title, secondsDone, secondsNeeded)
+			return api.ErrQuestExpired
+		}
+
 		resp, err := client.SendHeartbeat(ctx, q.ID, streamKey, false)
 		if err != nil {
-			fmt.Printf(i18n.M().HeartbeatWarning, err)
-		} else if resp != nil {
+			if errors.Is(err, api.ErrQuestExpired) {
+				fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+				return err
+			}
+			consecutiveErrors++
+			if consecutiveErrors == 1 || consecutiveErrors%10 == 0 {
+				fmt.Printf(i18n.M().HeartbeatWarning, err)
+			}
+			if consecutiveErrors >= maxConsecutiveErrors {
+				fmt.Printf(i18n.M().ProgressErrorAbort, q.Title, consecutiveErrors, err)
+				return err
+			}
+			if !sleepWithContext(ctx, errorBackoff(consecutiveErrors)) {
+				return ctx.Err()
+			}
+			continue
+		}
+
+		if resp != nil {
+			consecutiveErrors = 0
+			previousDone := secondsDone
 			if resp.Progress != nil {
 				if prog, ok := resp.Progress[q.TaskType]; ok {
 					secondsDone = prog.Value
@@ -469,6 +602,11 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 				}
 			} else {
 				secondsDone += 20.0
+			}
+			// Discord accepted the heartbeat but progress did not move: keep
+			// waiting, but the stall deadline above prevents an endless loop.
+			if secondsDone > previousDone {
+				stallDeadline = time.Now().Add(progressStallTimeout)
 			}
 			pct := (secondsDone / secondsNeeded) * 100.0
 			if pct > 100.0 {
@@ -482,11 +620,20 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 			}
 		}
 
-		time.Sleep(20 * time.Second)
+		if !sleepWithContext(ctx, 20*time.Second) {
+			return ctx.Err()
+		}
 	}
 
 	// Final terminal heartbeat
-	_, _ = client.SendHeartbeat(ctx, q.ID, streamKey, true)
+	if _, err := client.SendHeartbeat(ctx, q.ID, streamKey, true); err != nil {
+		if errors.Is(err, api.ErrQuestExpired) {
+			fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+			return err
+		}
+		fmt.Printf(i18n.M().HeartbeatWarning, err)
+		return err
+	}
 	fmt.Printf(i18n.M().HeartbeatCompleted, q.Title)
 	return nil
 }
@@ -498,6 +645,9 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 
 	fmt.Printf(i18n.M().ActivityStart, q.Title)
 
+	consecutiveErrors := 0
+	stallDeadline := time.Now().Add(progressStallTimeout)
+
 	for secondsDone < secondsNeeded {
 		select {
 		case <-ctx.Done():
@@ -505,14 +655,41 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 		default:
 		}
 
+		if time.Now().After(stallDeadline) {
+			fmt.Printf(i18n.M().ProgressStallAbort, q.Title, secondsDone, secondsNeeded)
+			return api.ErrQuestExpired
+		}
+
 		resp, err := client.SendHeartbeat(ctx, q.ID, streamKey, false)
 		if err != nil {
-			fmt.Printf(i18n.M().ActivityWarning, err)
-		} else if resp != nil {
+			if errors.Is(err, api.ErrQuestExpired) {
+				fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+				return err
+			}
+			consecutiveErrors++
+			if consecutiveErrors == 1 || consecutiveErrors%10 == 0 {
+				fmt.Printf(i18n.M().ActivityWarning, err)
+			}
+			if consecutiveErrors >= maxConsecutiveErrors {
+				fmt.Printf(i18n.M().ProgressErrorAbort, q.Title, consecutiveErrors, err)
+				return err
+			}
+			if !sleepWithContext(ctx, errorBackoff(consecutiveErrors)) {
+				return ctx.Err()
+			}
+			continue
+		}
+
+		if resp != nil {
+			consecutiveErrors = 0
+			previousDone := secondsDone
 			if resp.Progress != nil && resp.Progress["PLAY_ACTIVITY"].Value > 0 {
 				secondsDone = resp.Progress["PLAY_ACTIVITY"].Value
 			} else {
 				secondsDone += 20.0
+			}
+			if secondsDone > previousDone {
+				stallDeadline = time.Now().Add(progressStallTimeout)
 			}
 			fmt.Printf(i18n.M().ActivityProgress, secondsDone, secondsNeeded)
 			if (resp.CompletedAt != nil && *resp.CompletedAt != "") || secondsDone >= secondsNeeded {
@@ -520,10 +697,19 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 			}
 		}
 
-		time.Sleep(20 * time.Second)
+		if !sleepWithContext(ctx, 20*time.Second) {
+			return ctx.Err()
+		}
 	}
 
-	_, _ = client.SendHeartbeat(ctx, q.ID, streamKey, true)
+	if _, err := client.SendHeartbeat(ctx, q.ID, streamKey, true); err != nil {
+		if errors.Is(err, api.ErrQuestExpired) {
+			fmt.Printf(i18n.M().QuestExpiredSkip, q.Title, q.ID)
+			return err
+		}
+		fmt.Printf(i18n.M().ActivityWarning, err)
+		return err
+	}
 	fmt.Printf(i18n.M().ActivityCompleted, q.Title)
 	return nil
 }
@@ -571,12 +757,14 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 		}
 
 		type activeGame struct {
-			quest scanner.AnalyzedQuest
-			proc  spoofer.GameProcess
-			done  bool
+			quest  scanner.AnalyzedQuest
+			proc   spoofer.GameProcess
+			done   bool
+			lastSec float64
 		}
 
 		var activeGames []*activeGame
+		consecutiveFetchErrors := 0
 
 		fmt.Printf("\n[*] Starting Spoofer Batch: Concurrently launching %d game(s)...\n", batchEnd-batchStart)
 		for i := batchStart; i < batchEnd; i++ {
@@ -595,7 +783,7 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 				continue
 			}
 			fmt.Printf(i18n.M().SpooferProcCreated, proc.ExecutableName(), proc.PID())
-			activeGames = append(activeGames, &activeGame{quest: eq, proc: proc})
+			activeGames = append(activeGames, &activeGame{quest: eq, proc: proc, lastSec: eq.CurrentSec})
 		}
 
 		if len(activeGames) == 0 {
@@ -613,6 +801,7 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 		}
 
 		// Poll loop for active batch
+		noProgressPolls := 0
 		for {
 			select {
 			case <-ctx.Done():
@@ -623,29 +812,63 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 
 			rawQuests, err := apiClient.FetchQuests(ctx)
 			if err != nil {
+				if errors.Is(err, api.ErrQuestExpired) {
+					cleanup()
+					return err
+				}
+				// Never spin on a broken connection without a bound.
+				consecutiveFetchErrors++
+				if consecutiveFetchErrors == 1 || consecutiveFetchErrors%10 == 0 {
+					fmt.Printf(i18n.M().SpooferFetchWarning, err)
+				}
+				if consecutiveFetchErrors >= maxConsecutiveErrors {
+					fmt.Printf(i18n.M().ProgressErrorAbort, "spoofer", consecutiveFetchErrors, err)
+					cleanup()
+					return err
+				}
 				continue
 			}
+			consecutiveFetchErrors = 0
 
 			allBatchDone := true
+			progressed := false
 			for _, ag := range activeGames {
 				if ag.done {
 					continue
 				}
 
 				var curQ *api.Quest
-				for _, rq := range rawQuests {
-					if rq.ID == ag.quest.ID {
-						curQ = &rq
+				for i := range rawQuests {
+					if rawQuests[i].ID == ag.quest.ID {
+						curQ = &rawQuests[i]
 						break
 					}
 				}
 				if curQ == nil {
-					allBatchDone = false
+					// Quest vanished from the inventory (ended / removed).
+					fmt.Printf(i18n.M().QuestExpiredSkip, ag.quest.Title, ag.quest.ID)
+					_ = ag.proc.Stop()
+					ag.done = true
 					continue
 				}
 
 				analyzed := scanner.AnalyzeQuest(*curQ)
 				fmt.Printf("    [🎮 %s] Progress: %.0fs / %ds (State: %s)\n", analyzed.Title, analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
+
+				// An expired campaign must terminate the game immediately,
+				// otherwise this poll loop would run forever.
+				if analyzed.IsExpired || analyzed.State == scanner.StateExpired {
+					fmt.Printf(i18n.M().QuestExpiredSkip, analyzed.Title, analyzed.ID)
+					_ = ag.proc.Stop()
+					ag.done = true
+					continue
+				}
+
+				if analyzed.CurrentSec > ag.lastSec {
+					ag.lastSec = analyzed.CurrentSec
+					progressed = true
+				}
+
 				if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed || (analyzed.TargetSec > 0 && analyzed.CurrentSec >= float64(analyzed.TargetSec)) {
 					fmt.Printf(i18n.M().SpooferCompleted, analyzed.Title)
 					_ = ag.proc.Stop()
@@ -657,6 +880,19 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 
 			if allBatchDone {
 				break
+			}
+
+			// Guard against a quest that reports "not finished" but never
+			// advances (Discord stopped counting it hours ago).
+			if progressed {
+				noProgressPolls = 0
+			} else {
+				noProgressPolls++
+				if maxIdlePolls := int(progressStallTimeout / cfg.PollInterval); cfg.PollInterval > 0 && noProgressPolls >= maxIdlePolls {
+					fmt.Printf(i18n.M().ProgressStallAbort, "spoofer", 0.0, 0.0)
+					cleanup()
+					return api.ErrQuestExpired
+				}
 			}
 		}
 	}

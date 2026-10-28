@@ -1,0 +1,33 @@
+# ============================================================================
+# Line-ending policy (do not remove!)
+# ============================================================================
+# Windows Batch files are parsed by cmd.exe using byte offsets that assume CRLF.
+# A LF-only .cmd makes cmd.exe drop the first character of commands inside
+# ( ... ) blocks ("echo" -> "ho", "if exist" -> "xist") and abort before
+# `pause`, so the console window flashes and disappears.
+#
+# `-text` stores the file verbatim (no normalization at all). Because the repo
+# keeps these files CRLF-encoded, every checkout and every GitHub "Download ZIP"
+# export is byte-identical CRLF. This is stricter than `text eol=crlf`, which
+# stores LF blobs and depends on the client honoring the attribute on export.
+# ============================================================================
+
+* text=auto eol=lf
+
+# Never touch these: cmd.exe requires literal CRLF bytes.
+*.cmd -text
+*.bat -text
+
+# PowerShell tolerates either style; keep CRLF for Windows tooling.
+*.ps1 text eol=crlf
+
+# POSIX shell scripts must stay LF (a stray CR breaks shebangs).
+*.sh text eol=lf
+
+# Binary assets.
+*.exe binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.zip binary
+*.gz binary

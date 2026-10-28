@@ -1,10 +1,15 @@
-name: Release Build
+﻿name: Release Build
 
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.1.2)'
+        required: true
+        default: 'v1.1.2'
 
 permissions:
   contents: write
@@ -23,15 +28,71 @@ jobs:
           go-version: '1.23'
           cache: true
 
+      - name: Resolve version
+        id: ver
+        run: |
+          set -euo pipefail
+          TAG="${{ github.event.inputs.tag }}"
+          if [ -z "$TAG" ]; then TAG="${GITHUB_REF_NAME}"; fi
+          case "$TAG" in
+            v*) ;;
+            *)  TAG="v${TAG}" ;;
+          esac
+          echo "tag=${TAG}"   >> "$GITHUB_OUTPUT"
+          echo "semver=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Normalize & verify Windows batch line endings
+        run: |
+          set -euo pipefail
+          # ---------------------------------------------------------------
+          # cmd.exe parses .cmd/.bat using CRLF byte offsets. LF-only files
+          # cause truncated tokens ("echo" -> "ho") and the window closes
+          # before `pause`. Convert defensively, then fail hard if any file
+          # still has a bare LF.
+          # ---------------------------------------------------------------
+          shopt -s nullglob
+          files=(run.cmd setup_token.cmd scripts/windows_helpers/*.cmd *.bat)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No batch scripts found to validate"
+            exit 1
+          fi
+          for f in "${files[@]}"; do
+            [ -f "$f" ] || continue
+            sed -i 's/\r$//' "$f"
+            sed -i 's/$/\r/' "$f"
+            # Every LF byte must be preceded by exactly one CR byte.
+            crs=$(tr -cd '\r' < "$f" | wc -c)
+            lfs=$(tr -cd '\n' < "$f" | wc -c)
+            if [ "$crs" -ne "$lfs" ]; then
+              echo "::error file=$f::Bare LF detected (CR=$crs LF=$lfs) - cmd.exe would corrupt this script"
+              exit 1
+            fi
+            echo "OK  $f (CRLF=$lfs lines)"
+          done
+
       - name: Build Windows amd64
         env:
           CGO_ENABLED: 0
           GOOS: windows
           GOARCH: amd64
         run: |
-          go build -ldflags="-s -w" -o build/windows-amd64/discord-quest-phantom.exe cmd/completer/main.go
-          cp README.md LICENSE build/windows-amd64/
-          cd build/windows-amd64 && zip -r ../../discord-quest-phantom-windows-amd64.zip . && cd ../..
+          set -euo pipefail
+          go build -trimpath -ldflags="-s -w -X main.Version=${{ steps.ver.outputs.semver }}" \
+            -o build/windows-amd64/discord-quest-phantom.exe ./cmd/completer
+          cp README.md LICENSE run.cmd setup_token.cmd config.example.json .token.example build/windows-amd64/
+          # Double-check the staged bundle before zipping it for end users.
+          for f in build/windows-amd64/*.cmd; do
+            crs=$(tr -cd '\r' < "$f" | wc -c)
+            lfs=$(tr -cd '\n' < "$f" | wc -c)
+            if [ "$crs" -ne "$lfs" ]; then
+              echo "::error file=$f::Bare LF in packaged batch script (CR=$crs LF=$lfs)"
+              exit 1
+            fi
+          done
+          (cd build/windows-amd64 && zip -r ../../discord-quest-phantom-windows-amd64.zip .)
 
       - name: Build Linux amd64
         env:
@@ -39,9 +100,11 @@ jobs:
           GOOS: linux
           GOARCH: amd64
         run: |
-          go build -ldflags="-s -w" -o build/linux-amd64/discord-quest-phantom cmd/completer/main.go
-          cp README.md LICENSE build/linux-amd64/
-          cd build/linux-amd64 && tar -czvf ../../discord-quest-phantom-linux-amd64.tar.gz . && cd ../..
+          set -euo pipefail
+          go build -trimpath -ldflags="-s -w -X main.Version=${{ steps.ver.outputs.semver }}" \
+            -o build/linux-amd64/discord-quest-phantom ./cmd/completer
+          cp README.md LICENSE config.example.json .token.example build/linux-amd64/
+          (cd build/linux-amd64 && tar -czvf ../../discord-quest-phantom-linux-amd64.tar.gz .)
 
       - name: Build Linux arm64 (Armbian / Raspberry Pi)
         env:
@@ -49,21 +112,52 @@ jobs:
           GOOS: linux
           GOARCH: arm64
         run: |
-          go build -ldflags="-s -w" -o build/linux-arm64/discord-quest-phantom cmd/completer/main.go
-          cp README.md LICENSE build/linux-arm64/
-          cd build/linux-arm64 && tar -czvf ../../discord-quest-phantom-linux-arm64.tar.gz . && cd ../..
+          set -euo pipefail
+          go build -trimpath -ldflags="-s -w -X main.Version=${{ steps.ver.outputs.semver }}" \
+            -o build/linux-arm64/discord-quest-phantom ./cmd/completer
+          cp README.md LICENSE config.example.json .token.example build/linux-arm64/
+          (cd build/linux-arm64 && tar -czvf ../../discord-quest-phantom-linux-arm64.tar.gz .)
+
+      - name: Verify packaged architectures
+        run: |
+          set -euo pipefail
+          file build/windows-amd64/discord-quest-phantom.exe
+          file build/linux-amd64/discord-quest-phantom
+          file build/linux-arm64/discord-quest-phantom
+          file build/linux-arm64/discord-quest-phantom | grep -qi aarch64
+          file build/linux-amd64/discord-quest-phantom | grep -qi 'x86-64'
+          unzip -l discord-quest-phantom-windows-amd64.zip
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          TAG_NAME=${GITHUB_REF_NAME:-v1.0.0}
-          if [ "$TAG_NAME" = "main" ]; then TAG_NAME="v1.0.0"; fi
+          set -euo pipefail
+          TAG_NAME="${{ steps.ver.outputs.tag }}"
+
+          {
+            printf '## Discord Quest Phantom %s\n\n' "$TAG_NAME"
+            printf '### Fixed\n'
+            printf -- '- **Windows launcher no longer crashes on start** - `run.cmd` and `setup_token.cmd` now ship with correct CRLF line endings (enforced by `.gitattributes` plus a CI guard), so cmd.exe no longer chops commands like `echo` / `if exist` and the window stays open.\n'
+            printf -- '- **No Go toolchain required** - the prebuilt `discord-quest-phantom.exe` and both `.cmd` launchers are bundled in the Windows ZIP. Download, unzip, double-click.\n'
+            printf -- '- **Expired quests no longer flood the console** - quests that ended while the tool was idle are filtered out, retried with bounded backoff, and summarised in one compact line instead of endless error spam.\n'
+            printf -- '- **Linux ARM64 archive now really ships an aarch64 binary** - previously it was cross-compiled as amd64 by mistake.\n'
+            printf -- '- Token setup no longer loses pasted input (UTF-8 codepage is only applied when launching the app).\n'
+            printf '\n### Downloads\n'
+            printf -- '- Windows x64: `discord-quest-phantom-windows-amd64.zip`\n'
+            printf -- '- Linux x64: `discord-quest-phantom-linux-amd64.tar.gz`\n'
+            printf -- '- Linux ARM64: `discord-quest-phantom-linux-arm64.tar.gz`\n'
+          } > RELEASE_NOTES.md
+
+          # Replace a stale/prerelease of the same tag if one already exists.
+          gh release delete "$TAG_NAME" --yes --cleanup-tag 2>/dev/null || true
+
           gh release create "$TAG_NAME" \
             discord-quest-phantom-windows-amd64.zip \
             discord-quest-phantom-linux-amd64.tar.gz \
             discord-quest-phantom-linux-arm64.tar.gz \
             --title "Discord Quest Phantom $TAG_NAME" \
-            --notes "Autonomous dual-engine Discord Quest completer for Windows (x64) and Linux (x64, ARM64). Zero dependencies." \
+            --notes-file RELEASE_NOTES.md \
             --draft=false \
-            --prerelease=false || true
+            --prerelease=false \
+            --latest

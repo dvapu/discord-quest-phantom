@@ -1,5 +1,10 @@
 package api
 
+import (
+	"errors"
+	"fmt"
+)
+
 // UserMe represents the current authenticated Discord user (/users/@me).
 type UserMe struct {
 	ID         string  `json:"id"`
@@ -125,6 +130,28 @@ type DiscordCaptchaResponse struct {
 	CaptchaRqdata  string   `json:"captcha_rqdata"`
 	CaptchaRqtoken string   `json:"captcha_rqtoken"`
 }
+
+// ErrQuestExpired marks a quest that Discord no longer accepts progress for
+// (campaign ended while the tool was idle, already claimed, or removed).
+var ErrQuestExpired = errors.New("quest has expired or ended")
+
+// QuestExpiredError is returned when Discord answers a quest action with a
+// terminal "this quest is gone" status instead of a transient failure.
+type QuestExpiredError struct {
+	QuestID string
+	Status  int
+	Detail  string
+}
+
+func (e *QuestExpiredError) Error() string {
+	if e.Detail != "" {
+		return fmt.Sprintf("quest %s expired or ended (HTTP %d): %s", e.QuestID, e.Status, e.Detail)
+	}
+	return fmt.Sprintf("quest %s expired or ended (HTTP %d)", e.QuestID, e.Status)
+}
+
+// Is lets callers test with errors.Is(err, ErrQuestExpired).
+func (e *QuestExpiredError) Is(target error) bool { return target == ErrQuestExpired }
 
 // RateLimitResponse parses HTTP 429 JSON payload.
 type RateLimitResponse struct {

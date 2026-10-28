@@ -90,6 +90,14 @@ type Messages struct {
 	UpdateAvailableDetails string
 	ConcurrentHeader      string
 	AllQuestsDone         string
+	QuestExpiredSkip      string
+	ProgressStallAbort    string
+	ProgressErrorAbort    string
+	TableExpiredNotice    string
+	DaemonIdleNotice      string
+	ExpiredQuestsHidden   string
+	SpooferFetchWarning   string
+	AuthFailedHint        string
 }
 
 var catalogs = map[Language]Messages{
@@ -168,6 +176,14 @@ var catalogs = map[Language]Messages{
 		UpdateAvailableDetails: "    👉 Version: %s\n    👉 Download: %s\n==================================================================\n\n",
 		ConcurrentHeader:       "\n[*] Starting Parallel Engine: Concurrently running %d quest(s) (Max slots: %d)...\n",
 		AllQuestsDone:          "\n[🎉] All %d active quest(s) have finished processing successfully!\n",
+		QuestExpiredSkip:       "\n[⌛] Quest expired while idle, skipping: %s (%s)\n",
+		ProgressStallAbort:     "\n[⌛] No progress accepted for quest %s (%.0fs/%.0fs). Campaign likely ended; skipping instead of retrying.\n",
+		ProgressErrorAbort:     "\n[-] Giving up on %s after %d consecutive errors: %v\n",
+		TableExpiredNotice:     "\n[⌛] %d expired quest(s) hidden from the table (campaign ended). Use -debug to list them.\n",
+		DaemonIdleNotice:       "\n[💤] Nothing to do this cycle. Expired/completed quests are ignored until the next scan.\n",
+		ExpiredQuestsHidden:    "    ⌛ [EXPIRED] %s (%s)\n",
+		SpooferFetchWarning:    "    [-] Spoofer progress poll failed: %v\n",
+		AuthFailedHint:         "\n[i] Your Discord token is invalid or expired. Re-run setup_token.cmd and paste a fresh token.\n[i] Token cua ban da het han hoac khong hop le. Hay chay lai setup_token.cmd de nhap token moi.\n",
 	},
 	LangVI: {
 		BannerSubtitle:        "Chạy API Tự Động & Giả Lập Tiến Trình Game Cho Windows & Linux",
@@ -244,6 +260,14 @@ var catalogs = map[Language]Messages{
 		UpdateAvailableDetails: "    👉 Phiên bản: %s\n    👉 Tải về tại: %s\n==================================================================\n\n",
 		ConcurrentHeader:       "\n[*] Khởi Động Tiến Trình Song Song: Đang chạy đồng thời %d quest (Tối đa: %d luồng)...\n",
 		AllQuestsDone:          "\n[🎉] Toàn bộ %d quest đã hoàn tất tiến độ thành công!\n",
+		QuestExpiredSkip:       "\n[⌛] Quest đã hết hạn trong lúc không mở tool, bỏ qua: %s (%s)\n",
+		ProgressStallAbort:     "\n[⌛] Quest %s không nhận thêm tiến độ (%.0fs/%.0fs). Nhiệm vụ có thể đã kết thúc, bỏ qua thay vì thử lại.\n",
+		ProgressErrorAbort:     "\n[-] Bỏ qua %s sau %d lần lỗi liên tiếp: %v\n",
+		TableExpiredNotice:     "\n[⌛] Đã ẩn %d quest hết hạn khỏi bảng (chiến dịch đã kết thúc). Dùng -debug để xem chi tiết.\n",
+		DaemonIdleNotice:       "\n[💤] Chu kỳ này không có việc cần làm. Quest hết hạn/hoàn tất sẽ bị bỏ qua tới lần quét sau.\n",
+		ExpiredQuestsHidden:    "    ⌛ [HẾT HẠN] %s (%s)\n",
+		SpooferFetchWarning:    "    [-] Lỗi khi kiểm tra tiến độ spoofer: %v\n",
+		AuthFailedHint:         "\n[i] Token Discord không hợp lệ hoặc đã hết hạn. Hãy chạy lại setup_token.cmd và dán token mới.\n",
 	},
 }
 

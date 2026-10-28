@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.1
+# 👻 Discord Quest Phantom v1.1.2
 ### *Công cụ tự động hoàn thành Discord Quest đa nền tảng cho Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -26,7 +26,7 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.1           │
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.2           │
                         │   Quét Đa Vùng · Chạy Song Song · Cổng Giải Captcha    │
                         └───────────────────────────┬────────────────────────────┘
                                                     │
@@ -53,18 +53,28 @@
 
 ---
 
-## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.1
+## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.2
 
-1. **🌍 Quét Đa Vùng Bộ Ba Vàng Tự Động (`--region all`)**:
+1. **🩹 File `run.cmd` / `setup_token.cmd` đã chạy được thật sự**:
+   - Sửa triệt để lỗi "cửa sổ console chớp rồi tắt" do file batch lưu bằng chuẩn Unix (LF) thay vì Windows (CRLF).
+   - `.gitattributes` giờ khóa cứng các file `.cmd` sang CRLF nguyên bản, và CI sẽ **fail build** nếu có dấu LF đơn lẻ lọt vào, nên lỗi này không thể tái diễn.
+   - Máy nào tải về cũng chạy ngay: file `discord-quest-phantom.exe` đã đóng gói sẵn trong ZIP, **không cần cài Go hay Python**.
+   - Khi có lỗi, chương trình dừng lại và in rõ mã lỗi kèm gợi ý, cửa sổ không tự đóng nữa.
+2. **🧹 Hết tràn màn hình khi quest hết hạn**:
+   - Các quest đã kết thúc trong lúc bạn không mở tool (lỗi `HTTP 404 / 410 / 403 / 422`) được nhận diện và bỏ qua chỉ với **một dòng** thay vì thử lại vô tận.
+   - Vòng lặp tiến độ tự dừng sau 5 lỗi liên tiếp hoặc 3 phút không được Discord chấp nhận tiến độ, có giãn cách chờ hợp lý.
+   - Bảng danh sách quest gom các quest hết hạn thành **một dòng tổng kết** (dùng `-debug` để xem đầy đủ).
+   - Chế độ daemon không còn in lại y nguyên bảng cũ ở mỗi chu kỳ quét.
+3. **🌍 Quét Đa Vùng Bộ Ba Vàng Tự Động (`--region all`)**:
    - Khắc phục triệt để tình trạng nhiệm vụ và khung viền Avatar bị ẩn tại Việt Nam.
    - Phantom tự động quét song song bộ ba vàng (`en-US`, `ja-JP`, `vi-VN`) giúp gom toàn bộ nhiệm vụ toàn cầu về danh sách, hoàn thành mọi nhiệm vụ độc quyền không cần cắm VPN!
-2. **⚡ Chạy Song Song 2–5 Game/Nhiệm Vụ (`-concurrency 5`)**:
+4. **⚡ Chạy Song Song 2–5 Game/Nhiệm Vụ (`-concurrency 5`)**:
    - Thay vì chạy tuần tự tốn 15p x 5 = 75 phút, Phantom hỗ trợ **xử lý song song tối đa 5 quest cùng một lúc** với luồng heartbeat độc lập. Hoàn thành 5 game chỉ vỏn vẹn trong **15 phút**!
-3. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
+5. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
    - Khi chạy trên server Linux/Armbian 24/7 (`192.168.1.200`) qua SSH không có màn hình:
    - Nếu Discord bắt xác minh người thật, Phantom tự mở cổng web nội bộ `http://<IP_MAY>:8080` (tự động đổi port nếu bị trùng).
    - Bạn chỉ cần dùng điện thoại iPhone đang kết nối WiFi nhà, bấm vào link xác minh 1 giây là server tự động tiếp tục cày nhiệm vụ!
-4. **🔄 Tự Động Kiểm Tra Bản Cập Nhật**:
+6. **🔄 Tự Động Kiểm Tra Bản Cập Nhật**:
    - Kết nối về GitHub `dvapu/discord-quest-phantom` khi khởi động để báo khi có bản phát hành mới.
 
 ---
@@ -114,7 +124,7 @@ Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build 
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.1/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.2/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &

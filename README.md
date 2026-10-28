@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.1
+# 👻 Discord Quest Phantom v1.1.2
 ### *Autonomous Cross-Platform Quest Completer for Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -26,7 +26,7 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.1           │
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.2           │
                         │   Multi-Region Sweep · Parallel Engine · Captcha Portal │
                         └───────────────────────────┬────────────────────────────┘
                                                     │
@@ -53,19 +53,29 @@
 
 ---
 
-## 🚀 Key Highlights & New Capabilities in v1.1.1
+## 🚀 Key Highlights & New Capabilities in v1.1.2
 
-1. **🌍 Golden Trio Multi-Region Auto-Scan (`--region all`)**:
+1. **🩹 Windows launcher actually launches (`run.cmd` / `setup_token.cmd`)**:
+   - Fixed the "console window flashes and disappears" bug caused by Unix (LF) line endings in Windows batch files.
+   - `.gitattributes` now pins these files to literal CRLF bytes, and CI **fails the build** if a bare LF ever sneaks back in, so the bug cannot return.
+   - The launched program no longer needs Go or Python: the prebuilt `.exe` ships in the ZIP and `run.cmd` finds it automatically.
+   - Errors now stay on screen with a clear reason plus the exit code.
+2. **🧹 No more console flood from expired quests**:
+   - Quests that ended while you weren't using the tool are detected (`HTTP 404 / 410 / 403 / 422`) and dropped after **one** line instead of being retried forever.
+   - Progress loops now stop after 5 consecutive errors or 3 minutes without accepted progress, using bounded backoff.
+   - The quest table collapses expired campaigns into a single summary line (use `-debug` to see them all).
+   - Daemon mode no longer reprints an identical inventory every poll cycle.
+3. **🌍 Golden Trio Multi-Region Auto-Scan (`--region all`)**:
    - Discord region-locks exclusive avatar decorations and quests by evaluating `client_locale` / `system_locale` (why changing iPhone locale unlocks hidden quests).
    - Phantom queries the Golden Trio (`en-US`, `ja-JP`, `vi-VN`) in parallel (~2.5s) to reveal 100% of global quests, avatar frames, and rewards directly inside your Discord app without proxy/VPN!
-2. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
+4. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
    - Complete 2–5 quests concurrently in parallel lanes with staggered request jitter.
    - Finish 5 games in **15 minutes** instead of 75 minutes!
-3. **📱 Local Captcha Web Portal (`-portal` & `-portal-port`)**:
+5. **📱 Local Captcha Web Portal (`-portal` & `-portal-port`)**:
    - Running headless on a 24/7 Linux server/Armbian (e.g. `192.168.1.200`) via SSH?
    - When Discord challenges an enrollment, Phantom spins up a local web portal on port `8080` (with auto port-conflict resolution).
    - Just tap the local LAN link on your phone (same WiFi) to solve the captcha in 3 seconds, and the headless daemon instantly resumes!
-4. **🔄 Auto-Update Notification**:
+6. **🔄 Auto-Update Notification**:
    - Built-in updater queries GitHub releases at startup and alerts you when a new build is released.
 
 ---
@@ -105,19 +115,28 @@ Discord Quests come in multiple task structures. Discord Quest Phantom categoriz
 
 ## ⚡ 2. Setup & Execution
 
-### For Windows:
+### For Windows (no installation, no Go, no Python):
 1. Download `discord-quest-phantom-windows-amd64.zip` from [Releases](https://github.com/dvapu/discord-quest-phantom/releases).
-2. Extract the archive into any folder.
-3. Double-click `run.cmd` or `discord-quest-phantom.exe`:
-   - If `.token` is missing, the program will interactively prompt you to paste your token, save it automatically, and start immediately!
-   - No Python installation needed, no dependencies required, no Discord client needed!
+2. Extract the archive into any folder (not inside the ZIP preview — extract it first).
+3. Double-click `run.cmd`:
+   - If `.token` is missing, the launcher starts the token setup assistant, saves your token, and then starts the tool automatically.
+   - The prebuilt `discord-quest-phantom.exe` is included, so nothing has to be compiled.
+   - When the program exits, the window stays open and shows the exit code plus any error hint.
+
+> **If the window still closes instantly**, run it from a terminal to see the reason:
+> ```cmd
+> cd /d "C:\path\to\discord-quest-phantom"
+> run.cmd
+> ```
+
+You can also launch `discord-quest-phantom.exe` directly, but `run.cmd` is recommended because it keeps the window open.
 
 ### For Linux / VPS / Armbian / Raspberry Pi (24/7 Background Daemon):
 Run this single command to download the standalone binary and start 24/7 background execution:
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.1/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.2/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &
@@ -162,6 +181,20 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-lang` | `auto` | Language override: `auto`, `en`, `vi` |
 | `-dry-run` | `false` | Discover and display active quests without taking any actions |
 | `-token` | `""` | Provide Discord token directly via command-line argument |
+| `-debug` | `false` | Verbose output, including expired quests in the inventory table |
+| `-keep-open` | `true` | Wait for Enter before exiting (prevents the window from closing) |
+
+---
+
+## 🧯 Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Window flashes and closes instantly | Old build with LF line endings in the `.cmd` files | Use v1.1.2+ — `.gitattributes` + CI now enforce CRLF. Run `run.cmd` from a terminal to read the error. |
+| "'nul' is not recognized", "'ho' is not recognized", "'xist' is not recognized" | cmd.exe mis-parsing LF batch files (truncated `echo` / `if exist`) | Same as above: upgrade to v1.1.2+ and re-extract the ZIP. |
+| "you need to install Go and build it yourself" | Running the source tree instead of the release ZIP | Download `discord-quest-phantom-windows-amd64.zip` — it contains the prebuilt `.exe`. |
+| Endless expired-quest or error text scrolling | Old build retrying dead campaigns forever | Fixed in v1.1.2: terminal errors are detected and loops are bounded. |
+| `chcp`/garbled emoji in console | Legacy console codepage | The launcher switches to UTF-8 only while the app runs; Windows Terminal is recommended. |
 
 ---
 
