@@ -13,7 +13,7 @@
 #>
 $ErrorActionPreference = "Stop"
 
-$VERSION = "1.1.2"
+$VERSION = "1.1.3"
 $PROJECT_ROOT = Resolve-Path (Join-Path $PSScriptRoot "..")
 $DIST_DIR = Join-Path $PROJECT_ROOT "dist"
 $CMD_PATH = "./cmd/completer/"

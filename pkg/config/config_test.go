@@ -85,3 +85,42 @@ func TestConfigStructFields(t *testing.T) {
 		t.Errorf("expected AutoAccept true")
 	}
 }
+
+func TestParseHypeSquadAction(t *testing.T) {
+	tests := []struct {
+		input       string
+		wantHouse   int
+		wantLeave   bool
+		wantErr     bool
+	}{
+		{"", 0, false, false},
+		{"bravery", 1, false, false},
+		{"1", 1, false, false},
+		{"house1", 1, false, false},
+		{"brilliance", 2, false, false},
+		{"2", 2, false, false},
+		{"house2", 2, false, false},
+		{"balance", 3, false, false},
+		{"3", 3, false, false},
+		{"house3", 3, false, false},
+		{"leave", 0, true, false},
+		{"0", 0, true, false},
+		{"none", 0, true, false},
+		{"remove", 0, true, false},
+		{"invalid", 0, false, true},
+	}
+
+	for _, tt := range tests {
+		houseID, isLeave, err := ParseHypeSquadAction(tt.input)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("ParseHypeSquadAction(%q) err = %v, wantErr = %v", tt.input, err, tt.wantErr)
+		}
+		if houseID != tt.wantHouse {
+			t.Errorf("ParseHypeSquadAction(%q) houseID = %d, want %d", tt.input, houseID, tt.wantHouse)
+		}
+		if isLeave != tt.wantLeave {
+			t.Errorf("ParseHypeSquadAction(%q) isLeave = %v, want %v", tt.input, isLeave, tt.wantLeave)
+		}
+	}
+}
+

@@ -24,7 +24,7 @@ import (
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
-var Version = "1.1.2"
+var Version = "1.1.3"
 
 // lastInventorySignature remembers the previous scan fingerprint so daemon
 // mode can stay silent while nothing changes.
@@ -137,9 +137,18 @@ func main() {
 	fmt.Printf("    - Username:    %s\n", user.Username)
 	fmt.Printf("    - Global Name: %s\n", globalName)
 	fmt.Printf("    - 2FA Enabled: %t\n", user.MFAEnabled)
+	badgesStr := user.FormatBadges()
+	if badgesStr == "None" {
+		fmt.Printf("    - %s:      %s%s\n", i18n.M().BadgeProfileHeader, i18n.M().BadgeNone, i18n.M().BadgeTipPrompt)
+	} else {
+		fmt.Printf("    - %s:      %s\n", i18n.M().BadgeProfileHeader, badgesStr)
+	}
+
+	// 3.5. Badge Maximizer & HypeSquad House Management
+	user = handleBadgeMaximizer(ctx, cfg, apiClient, user)
 
 	for {
-		executePass(ctx, cfg, apiClient)
+		executePass(ctx, cfg, apiClient, user)
 
 		if !cfg.Daemon || cfg.DryRun {
 			break
@@ -174,7 +183,7 @@ func fetchQuests(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 	return apiClient.FetchQuests(ctx)
 }
 
-func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client) {
+func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client, user *api.UserMe) {
 	// In daemon mode, suppress the verbose scan/table output when the inventory
 	// is byte-identical to the previous cycle. This prevents an idle 24/7
 	// instance (or one whose quests all expired) from scrolling endlessly.
@@ -234,6 +243,7 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 	// 6. Dry-run Mode
 	if cfg.DryRun {
 		fmt.Println(i18n.M().DryRunNotice)
+		printSessionSummary(user, analyzedQuests)
 		return
 	}
 
@@ -260,6 +270,98 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client)
 	}
 
 	fmt.Println(i18n.M().AllTasksFinished)
+	printSessionSummary(user, analyzedQuests)
+}
+
+func handleBadgeMaximizer(ctx context.Context, cfg *config.Config, apiClient *api.Client, user *api.UserMe) *api.UserMe {
+	if cfg.DryRun && cfg.HypeSquad == "" {
+		return user
+	}
+
+	// 1. Explicit CLI HypeSquad action
+	if cfg.HypeSquad != "" {
+		houseID, isLeave, err := config.ParseHypeSquadAction(cfg.HypeSquad)
+		if err != nil {
+			fmt.Printf(i18n.M().BadgeError, err)
+			return user
+		}
+
+		if isLeave {
+			fmt.Print(i18n.M().BadgeLeavingHypeSquad)
+			if err := apiClient.LeaveHypeSquad(ctx); err != nil {
+				fmt.Printf(i18n.M().BadgeError, err)
+			} else {
+				fmt.Print(i18n.M().BadgeLeaveSuccess)
+				if refreshed, err := apiClient.ValidateToken(ctx); err == nil {
+					user = refreshed
+					fmt.Printf("    - %s: %s\n", i18n.M().BadgeProfileHeader, user.FormatBadges())
+				}
+			}
+			return user
+		}
+
+		houseName := "House of Bravery"
+		switch houseID {
+		case api.HypeSquadHouseBrilliance:
+			houseName = "House of Brilliance"
+		case api.HypeSquadHouseBalance:
+			houseName = "House of Balance"
+		}
+
+		fmt.Printf(i18n.M().BadgeJoiningHypeSquad, houseName)
+		if err := apiClient.JoinHypeSquad(ctx, houseID); err != nil {
+			fmt.Printf(i18n.M().BadgeError, err)
+		} else {
+			fmt.Printf(i18n.M().BadgeClaimSuccess, houseName)
+			if refreshed, err := apiClient.ValidateToken(ctx); err == nil {
+				user = refreshed
+				fmt.Printf("    - %s: %s\n", i18n.M().BadgeProfileHeader, user.FormatBadges())
+			}
+		}
+		return user
+	}
+
+	// 2. MaxBadge auto-maximization
+	if cfg.MaxBadge {
+		if user.HasHypeSquad() {
+			_, houseName := user.GetHypeSquadHouse()
+			fmt.Printf(i18n.M().BadgeAlreadyOwned, houseName)
+		} else {
+			fmt.Print(i18n.M().BadgeAutoEnrolling)
+			if err := apiClient.JoinHypeSquad(ctx, api.HypeSquadHouseBravery); err != nil {
+				fmt.Printf(i18n.M().BadgeError, err)
+			} else {
+				fmt.Printf(i18n.M().BadgeClaimSuccess, "House of Bravery")
+				if refreshed, err := apiClient.ValidateToken(ctx); err == nil {
+					user = refreshed
+					fmt.Printf("    - %s: %s\n", i18n.M().BadgeProfileHeader, user.FormatBadges())
+				}
+			}
+		}
+	}
+
+	return user
+}
+
+func printSessionSummary(user *api.UserMe, quests []scanner.AnalyzedQuest) {
+	fmt.Print(i18n.M().SummaryHeader)
+	badges := "None"
+	if user != nil {
+		badges = user.FormatBadges()
+	}
+	fmt.Printf(i18n.M().SummaryBadges, badges)
+
+	var completedCount, totalActive int
+	for _, q := range quests {
+		if !q.IsExpired {
+			totalActive++
+			if q.State == scanner.StateCompleted || q.State == scanner.StateClaimed {
+				completedCount++
+			}
+		}
+	}
+	fmt.Printf(i18n.M().SummaryQuestsDone, completedCount, totalActive)
+	fmt.Print(i18n.M().SummaryClaimReminder)
 }
 
 func printBanner() {

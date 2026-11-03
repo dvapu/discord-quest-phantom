@@ -1,7 +1,7 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.2
-### *Công cụ tự động hoàn thành Discord Quest đa nền tảng cho Windows & Linux (x64 / ARM64)*
+# 👻 Discord Quest Phantom v1.1.3
+### *Công cụ tự động hoàn thành Discord Quest & Tối ưu Huy hiệu đa nền tảng cho Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
 [![Build & Release](https://img.shields.io/github/actions/workflow/status/dvapu/discord-quest-phantom/release.yml?style=flat-square)](https://github.com/dvapu/discord-quest-phantom/actions)
@@ -26,22 +26,22 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.2           │
-                        │   Quét Đa Vùng · Chạy Song Song · Cổng Giải Captcha    │
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.3           │
+                        │   Quét Đa Vùng · Chạy Song Song · Tối Ưu Huy Hiệu      │
                         └───────────────────────────┬────────────────────────────┘
                                                     │
                                      Bộ Điều Phối Trung Tâm
                                                     │
                 ┌───────────────────────────────────┼───────────────────────────────────┐
                 ▼                                   ▼                                   ▼
-    [1. QUÉT ĐA VÙNG (MULTI-REGION)]    [2. CHẠY SONG SONG (PARALLEL)]        [3. CỔNG CAPTCHA NỘI BỘ]
+    [1. QUÉT ĐA VÙNG (MULTI-REGION)]    [2. CHẠY SONG SONG (PARALLEL)]        [3. HUY HIỆU & CAPTCHA]
   - Quét đồng thời US, JP và VN      - Chạy đồng thời 2-5 quest           - Tự dò IP LAN & tự đổi port
-  - Giả lập X-Super-Properties       - Tạo độ trễ ngẫu nhiên (Jitter)     - 1 chạm trên điện thoại iPhone
+  - Giả lập X-Super-Properties       - Tạo độ trễ ngẫu nhiên (Jitter)     - 🎖️ Mở khóa Huy hiệu HypeSquad tức thì
   - Mở khóa khung avatar bị ẩn       - Hoàn thành 5 game trong 15 phút!   - Cứu cánh server SSH Linux
                 │                                   │                                   │
                 └───────────────────────────────────┴───────────────────────────────────┘
                                                     │
-                                  2 Động Cơ Thực Thi Độc Lập
+                                   2 Động Cơ Thực Thi Độc Lập
                                                     │
                 ┌───────────────────────────────────┴───────────────────────────────────┐
                 ▼                                                                       ▼
@@ -53,9 +53,14 @@
 
 ---
 
-## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.2
+## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.3
 
-1. **🩹 File `run.cmd` / `setup_token.cmd` đã chạy được thật sự**:
+1. **🎖️ Tối Ưu Huy Hiệu Profile & Tích Hợp HypeSquad (`-max-badge`, `-hypesquad`)**:
+   - **Tự động nhận diện & hiển thị huy hiệu**: Đọc bitmask public_flags của tài khoản và hiển thị đầy đủ huy hiệu (`[🛡️ HypeSquad Bravery]`, `[🛠️ Active Developer]`, `[🚀 Nitro]`, v.v.).
+   - **Mở khóa Huy hiệu HypeSquad tức thì**: Gọi trực tiếp Discord API (`POST /api/v9/hypesquad/online`) để tham gia hoặc đổi nhà HypeSquad (`bravery` / `1`, `brilliance` / `2`, `balance` / `3`, hoặc rời `leave` / `0`).
+   - **Tự động Max Badge mặc định**: Khi chạy tool, nếu tài khoản chưa có huy hiệu HypeSquad, tool tự động nhận huy hiệu House of Bravery để bạn có trọn bộ huy hiệu đẹp nhất cùng quà nhiệm vụ!
+   - **Bảng tổng kết cuối phiên**: Hiển thị bảng tổng kết huy hiệu hồ sơ và số lượng quest đã hoàn thành.
+2. **🩹 File `run.cmd` / `setup_token.cmd` đã chạy được thật sự**:
    - Sửa triệt để lỗi "cửa sổ console chớp rồi tắt" do file batch lưu bằng chuẩn Unix (LF) thay vì Windows (CRLF).
    - `.gitattributes` giờ khóa cứng các file `.cmd` sang CRLF nguyên bản, và CI sẽ **fail build** nếu có dấu LF đơn lẻ lọt vào, nên lỗi này không thể tái diễn.
    - Máy nào tải về cũng chạy ngay: file `discord-quest-phantom.exe` đã đóng gói sẵn trong ZIP, **không cần cài Go hay Python**.
@@ -159,6 +164,8 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 
 | Cờ Lệnh | Mặc Định | Ý Nghĩa / Chức Năng |
 |---|---|---|
+| `-max-badge` | `true` | Tối ưu huy hiệu Discord (tự động nhận huy hiệu HypeSquad nếu chưa có) |
+| `-hypesquad` | `""` | Chọn nhà HypeSquad: `bravery` (1), `brilliance` (2), `balance` (3), hoặc `leave` (0) |
 | `-region` | `all` | Khu vực quét: `all` (Bộ Ba Vàng: US+JP+VN), `us`, `jp`, `vn` |
 | `-concurrency` | `5` | Số lượng quest chạy song song tối đa (1–5) |
 | `-daemon` | `false` | Chạy nền 24/7 như dịch vụ hệ thống, quét định kỳ tự động |

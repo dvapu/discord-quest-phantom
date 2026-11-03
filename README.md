@@ -1,7 +1,7 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.2
-### *Autonomous Cross-Platform Quest Completer for Windows & Linux (x64 / ARM64)*
+# 👻 Discord Quest Phantom v1.1.3
+### *Autonomous Cross-Platform Quest Completer & Badge Maximizer for Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
 [![Build & Release](https://img.shields.io/github/actions/workflow/status/dvapu/discord-quest-phantom/release.yml?style=flat-square)](https://github.com/dvapu/discord-quest-phantom/actions)
@@ -26,17 +26,17 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.2           │
-                        │   Multi-Region Sweep · Parallel Engine · Captcha Portal │
+                        │              DISCORD QUEST PHANTOM 👻 v1.1.3           │
+                        │   Multi-Region Sweep · Parallel Engine · Badge Maximizer│
                         └───────────────────────────┬────────────────────────────┘
                                                     │
                                      Core System Orchestrator
                                                     │
                 ┌───────────────────────────────────┼───────────────────────────────────┐
                 ▼                                   ▼                                   ▼
-    [1. MULTI-REGION SWEEP]             [2. PARALLEL RUNNER (DEFAULT)]        [3. LOCAL CAPTCHA PORTAL]
+    [1. MULTI-REGION SWEEP]             [2. PARALLEL RUNNER (DEFAULT)]        [3. BADGE & CAPTCHA PORTAL]
   - Probes US, JP & VN locales       - Concurrently runs 2-5 quests       - Auto LAN IP & port detection
-  - Spoofs X-Super-Properties        - Staggered API request jitter       - Mobile 1-tap hCaptcha/Turnstile
+  - Spoofs X-Super-Properties        - Staggered API request jitter       - 🎖️ Instant HypeSquad Badge Claim
   - Reveals hidden avatar frames     - 5 games in 15 mins (not 75 mins!)  - Zero SSH/headless lockouts
                 │                                   │                                   │
                 └───────────────────────────────────┴───────────────────────────────────┘
@@ -53,9 +53,14 @@
 
 ---
 
-## 🚀 Key Highlights & New Capabilities in v1.1.2
+## 🚀 Key Highlights & New Capabilities in v1.1.3
 
-1. **🩹 Windows launcher actually launches (`run.cmd` / `setup_token.cmd`)**:
+1. **🎖️ Discord Badge Maximizer & HypeSquad Integration (`-max-badge`, `-hypesquad`)**:
+   - **Auto-Detect & Display**: Inspects user profile flags and displays active Discord badges (`[🛡️ HypeSquad Bravery]`, `[🛠️ Active Developer]`, `[🚀 Nitro]`, etc.).
+   - **Instant HypeSquad Claiming**: Directly interacts with official Discord API (`POST /api/v9/hypesquad/online`) to enroll or switch your HypeSquad House (`bravery` / `1`, `brilliance` / `2`, `balance` / `3`, or `leave` / `0`).
+   - **Auto-Maximization by Default**: When running the tool, if your account has no HypeSquad badge, it automatically claims the House of Bravery badge so you immediately maximize your account badges along with quest rewards!
+   - **End-of-Session Summary**: Prints a clean Profile Badges & Quests summary at the end of each pass.
+2. **🩹 Windows launcher actually launches (`run.cmd` / `setup_token.cmd`)**:
    - Fixed the "console window flashes and disappears" bug caused by Unix (LF) line endings in Windows batch files.
    - `.gitattributes` now pins these files to literal CRLF bytes, and CI **fails the build** if a bare LF ever sneaks back in, so the bug cannot return.
    - The launched program no longer needs Go or Python: the prebuilt `.exe` ships in the ZIP and `run.cmd` finds it automatically.
@@ -171,6 +176,8 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 
 | Flag | Default | Description |
 |---|---|---|
+| `-max-badge` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
+| `-hypesquad` | `""` | HypeSquad House badge: `bravery` (1), `brilliance` (2), `balance` (3), or `leave` (0) |
 | `-region` | `all` | Regional probe scope: `all` (Golden Trio: US+JP+VN), `us`, `jp`, `vn` |
 | `-concurrency` | `5` | Maximum concurrent quests running in parallel (1–5) |
 | `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |

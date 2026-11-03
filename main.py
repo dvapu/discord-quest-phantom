@@ -166,6 +166,21 @@ class DiscordAPI:
         log(f"  -> {r.status_code} ({len(r.content)} bytes)", "debug")
         return r
 
+    def delete(self, path: str, **kwargs) -> requests.Response:
+        url = f"{API_BASE}{path}"
+        log(f"DELETE {path}", "debug")
+        r = self.session.delete(url, **kwargs)
+        log(f"  -> {r.status_code} ({len(r.content)} bytes)", "debug")
+        return r
+
+    def join_hypesquad(self, house_id: int) -> bool:
+        r = self.post("/hypesquad/online", payload={"house_id": house_id})
+        return r.status_code in (200, 204)
+
+    def leave_hypesquad(self) -> bool:
+        r = self.delete("/hypesquad/online")
+        return r.status_code in (200, 204)
+
     def validate_token(self) -> bool:
         try:
             r = self.get("/users/@me")
@@ -173,6 +188,30 @@ class DiscordAPI:
                 user = r.json()
                 name = user.get("username", "?")
                 log(f"Đăng nhập: {Colors.BOLD}{name}{Colors.RESET} (ID: {user['id']})", "ok")
+
+                flags = (user.get("flags") or 0) | (user.get("public_flags") or 0)
+                badges = []
+                if flags & (1 << 0): badges.append("Staff")
+                if flags & (1 << 1): badges.append("Partner")
+                if flags & (1 << 2): badges.append("HypeSquad Events")
+                if flags & (1 << 6): badges.append("HypeSquad Bravery")
+                if flags & (1 << 7): badges.append("HypeSquad Brilliance")
+                if flags & (1 << 8): badges.append("HypeSquad Balance")
+                if flags & (1 << 9): badges.append("Early Supporter")
+                if flags & (1 << 22): badges.append("Active Developer")
+                prem = user.get("premium_type", 0)
+                if prem == 1: badges.append("Nitro Classic")
+                elif prem == 2: badges.append("Nitro")
+                elif prem == 3: badges.append("Nitro Basic")
+
+                badge_str = " ".join(f"[{b}]" for b in badges) if badges else "None"
+                log(f"Huy hiệu / Badges: {Colors.BOLD}{badge_str}{Colors.RESET}", "info")
+
+                has_hypesquad = bool(flags & ((1 << 6) | (1 << 7) | (1 << 8)))
+                if not has_hypesquad:
+                    log("Tự động nhận huy hiệu HypeSquad Bravery (Badge Maximizer)...", "info")
+                    if self.join_hypesquad(1):
+                        log("Mở khóa huy hiệu HypeSquad Bravery thành công!", "ok")
                 return True
             else:
                 log(f"Token không hợp lệ (status {r.status_code})", "error")

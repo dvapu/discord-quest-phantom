@@ -23,10 +23,10 @@ active_*.py
 *.dll
 *.so
 *.dylib
-discord-quest-completer
-discord-quest-completer.exe
-discord-quest-phantom
-completer
+/discord-quest-completer
+/discord-quest-completer.exe
+/discord-quest-phantom
+/completer
 
 # Build distribution folders
 dist/
@@ -38,3 +38,8 @@ games/
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo

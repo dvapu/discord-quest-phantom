@@ -647,3 +647,104 @@ func (c *Client) SendHeartbeat(ctx context.Context, questID string, streamKey st
 
 	return nil, fmt.Errorf("exceeded max retries for heartbeat on quest %s", questID)
 }
+
+// HypeSquadPayload models the JSON payload sent to POST /api/v9/hypesquad/online.
+type HypeSquadPayload struct {
+	HouseID int `json:"house_id"`
+}
+
+// JoinHypeSquad joins or switches the authenticated user's HypeSquad house (1: Bravery, 2: Brilliance, 3: Balance).
+func (c *Client) JoinHypeSquad(ctx context.Context, houseID int) error {
+	if houseID < 1 || houseID > 3 {
+		return fmt.Errorf("invalid house ID %d: must be 1 (Bravery), 2 (Brilliance), or 3 (Balance)", houseID)
+	}
+
+	payload := HypeSquadPayload{HouseID: houseID}
+	payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to encode hypesquad payload: %w", err)
+	}
+
+	url := c.apiBase + "/hypesquad/online"
+	maxRetries := 3
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payloadBytes))
+		if err != nil {
+			return fmt.Errorf("failed to create hypesquad request: %w", err)
+		}
+		c.setHeaders(req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("hypesquad request failed: %w", err)
+		}
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("failed reading hypesquad response: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			retryDuration := parseRetryAfter(resp, bodyBytes)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(retryDuration + 1*time.Second):
+				continue
+			}
+		}
+
+		if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusOK {
+			return nil
+		}
+
+		return fmt.Errorf("hypesquad join failed: HTTP %d: %s", resp.StatusCode, truncateBody(bodyBytes))
+	}
+
+	return fmt.Errorf("exceeded max retries joining hypesquad house %d", houseID)
+}
+
+// LeaveHypeSquad removes the authenticated user from their HypeSquad house.
+func (c *Client) LeaveHypeSquad(ctx context.Context) error {
+	url := c.apiBase + "/hypesquad/online"
+	maxRetries := 3
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+		if err != nil {
+			return fmt.Errorf("failed to create hypesquad leave request: %w", err)
+		}
+		c.setHeaders(req)
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return fmt.Errorf("hypesquad leave request failed: %w", err)
+		}
+
+		bodyBytes, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return fmt.Errorf("failed reading hypesquad leave response: %w", err)
+		}
+
+		if resp.StatusCode == http.StatusTooManyRequests {
+			retryDuration := parseRetryAfter(resp, bodyBytes)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(retryDuration + 1*time.Second):
+				continue
+			}
+		}
+
+		if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusOK {
+			return nil
+		}
+
+		return fmt.Errorf("hypesquad leave failed: HTTP %d: %s", resp.StatusCode, truncateBody(bodyBytes))
+	}
+
+	return fmt.Errorf("exceeded max retries leaving hypesquad")
+}

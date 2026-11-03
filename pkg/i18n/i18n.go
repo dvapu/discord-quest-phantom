@@ -98,6 +98,20 @@ type Messages struct {
 	ExpiredQuestsHidden   string
 	SpooferFetchWarning   string
 	AuthFailedHint        string
+	BadgeProfileHeader    string
+	BadgeNone             string
+	BadgeTipPrompt        string
+	BadgeJoiningHypeSquad string
+	BadgeLeavingHypeSquad string
+	BadgeClaimSuccess     string
+	BadgeAlreadyOwned     string
+	BadgeLeaveSuccess     string
+	BadgeError            string
+	BadgeAutoEnrolling    string
+	SummaryHeader         string
+	SummaryBadges         string
+	SummaryQuestsDone     string
+	SummaryClaimReminder  string
 }
 
 var catalogs = map[Language]Messages{
@@ -184,6 +198,20 @@ var catalogs = map[Language]Messages{
 		ExpiredQuestsHidden:    "    ⌛ [EXPIRED] %s (%s)\n",
 		SpooferFetchWarning:    "    [-] Spoofer progress poll failed: %v\n",
 		AuthFailedHint:         "\n[i] Your Discord token is invalid or expired. Re-run setup_token.cmd and paste a fresh token.\n[i] Token cua ban da het han hoac khong hop le. Hay chay lai setup_token.cmd de nhap token moi.\n",
+		BadgeProfileHeader:    "Badges",
+		BadgeNone:             "None",
+		BadgeTipPrompt:        " (Tip: run with -max-badge or -hypesquad bravery to unlock an instant badge!)",
+		BadgeJoiningHypeSquad: "[*] 🎖️ Badge Maximizer: Enrolling in %s...\n",
+		BadgeLeavingHypeSquad: "[*] 🎖️ HypeSquad: Leaving HypeSquad house...\n",
+		BadgeClaimSuccess:     "[+] 🎖️ Badge Maximizer: Successfully unlocked [%s] badge!\n",
+		BadgeAlreadyOwned:     "[+] 🎖️ Badge Maximizer: Account already holds [%s] badge.\n",
+		BadgeLeaveSuccess:     "[+] 🎖️ HypeSquad: Successfully removed HypeSquad badge.\n",
+		BadgeError:            "[-] 🎖️ Badge operation error: %v\n",
+		BadgeAutoEnrolling:    "[*] 🎖️ Badge Maximizer: No HypeSquad badge detected. Auto-claiming House of Bravery badge...\n",
+		SummaryHeader:         "\n======================= SUMMARY / TỔNG KẾT =======================",
+		SummaryBadges:         "[🎖️] Profile Badges: %s\n",
+		SummaryQuestsDone:     "[✅] Quests Status:  %d Completed / %d Total Active\n",
+		SummaryClaimReminder:  "[🎁] Open Discord Desktop/Mobile to claim your rewards & avatar decorations!\n==================================================================\n",
 	},
 	LangVI: {
 		BannerSubtitle:        "Chạy API Tự Động & Giả Lập Tiến Trình Game Cho Windows & Linux",
@@ -268,6 +296,20 @@ var catalogs = map[Language]Messages{
 		ExpiredQuestsHidden:    "    ⌛ [HẾT HẠN] %s (%s)\n",
 		SpooferFetchWarning:    "    [-] Lỗi khi kiểm tra tiến độ spoofer: %v\n",
 		AuthFailedHint:         "\n[i] Token Discord không hợp lệ hoặc đã hết hạn. Hãy chạy lại setup_token.cmd và dán token mới.\n",
+		BadgeProfileHeader:    "Huy hiệu",
+		BadgeNone:             "Chưa có",
+		BadgeTipPrompt:        " (Mẹo: chạy với -max-badge hoặc -hypesquad bravery để mở khóa huy hiệu ngay!)",
+		BadgeJoiningHypeSquad: "[*] 🎖️ Tối Ưu Huy Hiệu: Đang tham gia %s...\n",
+		BadgeLeavingHypeSquad: "[*] 🎖️ HypeSquad: Đang rời khỏi nhà HypeSquad...\n",
+		BadgeClaimSuccess:     "[+] 🎖️ Tối Ưu Huy Hiệu: Mở khóa thành công huy hiệu [%s]!\n",
+		BadgeAlreadyOwned:     "[+] 🎖️ Tối Ưu Huy Hiệu: Tài khoản đã sở hữu huy hiệu [%s].\n",
+		BadgeLeaveSuccess:     "[+] 🎖️ HypeSquad: Đã gỡ bỏ thành công huy hiệu HypeSquad.\n",
+		BadgeError:            "[-] 🎖️ Lỗi thao tác huy hiệu: %v\n",
+		BadgeAutoEnrolling:    "[*] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Tự động nhận huy hiệu House of Bravery...\n",
+		SummaryHeader:         "\n======================= SUMMARY / TỔNG KẾT =======================",
+		SummaryBadges:         "[🎖️] Huy hiệu hồ sơ: %s\n",
+		SummaryQuestsDone:     "[✅] Trạng thái Quest: %d Đã xong / %d Tổng quest khả dụng\n",
+		SummaryClaimReminder:  "[🎁] Hãy mở Discord trên máy tính hoặc điện thoại để nhận quà và khung avatar!\n==================================================================\n",
 	},
 }
 

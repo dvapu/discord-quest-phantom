@@ -33,6 +33,27 @@ type Config struct {
 	PortalPort   int
 	Concurrency  int
 	Daemon       bool
+	HypeSquad    string
+	MaxBadge     bool
+}
+
+// ParseHypeSquadAction parses a user string for HypeSquad House enrollment/leaving.
+func ParseHypeSquadAction(val string) (int, bool, error) {
+	v := strings.ToLower(strings.TrimSpace(val))
+	switch v {
+	case "":
+		return 0, false, nil
+	case "bravery", "1", "house1", "house_1":
+		return 1, false, nil
+	case "brilliance", "2", "house2", "house_2":
+		return 2, false, nil
+	case "balance", "3", "house3", "house_3":
+		return 3, false, nil
+	case "leave", "none", "remove", "0", "off", "exit":
+		return 0, true, nil
+	default:
+		return 0, false, fmt.Errorf("invalid hypesquad house %q: valid options are bravery (1), brilliance (2), balance (3), or leave (0)", val)
+	}
 }
 
 // MaskToken returns a safe, redacted representation of the Discord token for logs.
@@ -143,6 +164,9 @@ func LoadConfig() (*Config, error) {
 	flag.IntVar(&cfg.PortalPort, "portal-port", 8080, "Port for local captcha web portal")
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")
 	flag.BoolVar(&cfg.Daemon, "daemon", false, "Run continuously as a background daemon/service, re-checking quests periodically")
+	flag.StringVar(&cfg.HypeSquad, "hypesquad", "", "HypeSquad House: bravery (1), brilliance (2), balance (3), leave (0)")
+	flag.BoolVar(&cfg.MaxBadge, "max-badge", true, "Auto-claim HypeSquad House badge if missing (default: true)")
+	flag.BoolVar(&cfg.MaxBadge, "badges", true, "Alias for -max-badge")
 
 	// Internal stub mode flags (used when spawned as a spoofed game process)
 	flag.BoolVar(&cfg.RunStub, "stub", false, "Internal stub mode: run as dummy game process")
