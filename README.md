@@ -141,7 +141,7 @@ Run this single command to download the standalone binary and start 24/7 backgro
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.2/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.3/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &

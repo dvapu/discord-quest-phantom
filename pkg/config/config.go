@@ -147,6 +147,7 @@ func LoadConfig() (*Config, error) {
 
 	var tokenFlag string
 	var autoAcceptFlag, autoEnrollFlag bool
+	var maxBadgeFlag, badgesFlag bool
 	flag.StringVar(&tokenFlag, "token", "", "Discord authorization token")
 	flag.DurationVar(&cfg.PollInterval, "poll", 60*time.Second, "Poll interval for quest monitoring")
 	flag.BoolVar(&autoAcceptFlag, "auto-accept", true, "Auto-enroll in eligible quests")
@@ -165,8 +166,8 @@ func LoadConfig() (*Config, error) {
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")
 	flag.BoolVar(&cfg.Daemon, "daemon", false, "Run continuously as a background daemon/service, re-checking quests periodically")
 	flag.StringVar(&cfg.HypeSquad, "hypesquad", "", "HypeSquad House: bravery (1), brilliance (2), balance (3), leave (0)")
-	flag.BoolVar(&cfg.MaxBadge, "max-badge", true, "Auto-claim HypeSquad House badge if missing (default: true)")
-	flag.BoolVar(&cfg.MaxBadge, "badges", true, "Alias for -max-badge")
+	flag.BoolVar(&maxBadgeFlag, "max-badge", true, "Auto-claim HypeSquad House badge if missing (default: true)")
+	flag.BoolVar(&badgesFlag, "badges", true, "Alias for -max-badge")
 
 	// Internal stub mode flags (used when spawned as a spoofed game process)
 	flag.BoolVar(&cfg.RunStub, "stub", false, "Internal stub mode: run as dummy game process")
@@ -184,6 +185,8 @@ func LoadConfig() (*Config, error) {
 
 	// Auto-enroll is enabled if neither flag disabled it
 	cfg.AutoAccept = autoAcceptFlag && autoEnrollFlag
+	// MaxBadge is enabled if neither flag disabled it
+	cfg.MaxBadge = maxBadgeFlag && badgesFlag
 
 	token, err := ResolveToken(tokenFlag)
 	if err != nil {

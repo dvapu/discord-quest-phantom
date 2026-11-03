@@ -108,6 +108,9 @@ type Messages struct {
 	BadgeLeaveSuccess     string
 	BadgeError            string
 	BadgeAutoEnrolling    string
+	BadgeDryRunJoin       string
+	BadgeDryRunLeave      string
+	BadgeDryRunAutoEnroll string
 	SummaryHeader         string
 	SummaryBadges         string
 	SummaryQuestsDone     string
@@ -208,6 +211,9 @@ var catalogs = map[Language]Messages{
 		BadgeLeaveSuccess:     "[+] 🎖️ HypeSquad: Successfully removed HypeSquad badge.\n",
 		BadgeError:            "[-] 🎖️ Badge operation error: %v\n",
 		BadgeAutoEnrolling:    "[*] 🎖️ Badge Maximizer: No HypeSquad badge detected. Auto-claiming House of Bravery badge...\n",
+		BadgeDryRunJoin:       "[*] [DRY-RUN] 🎖️ Badge Maximizer: Would enroll in %s (no changes made)\n",
+		BadgeDryRunLeave:      "[*] [DRY-RUN] 🎖️ HypeSquad: Would leave HypeSquad house (no changes made)\n",
+		BadgeDryRunAutoEnroll: "[*] [DRY-RUN] 🎖️ Badge Maximizer: No HypeSquad badge detected. Would auto-claim House of Bravery badge (no changes made)\n",
 		SummaryHeader:         "\n======================= SUMMARY / TỔNG KẾT =======================",
 		SummaryBadges:         "[🎖️] Profile Badges: %s\n",
 		SummaryQuestsDone:     "[✅] Quests Status:  %d Completed / %d Total Active\n",
@@ -306,6 +312,9 @@ var catalogs = map[Language]Messages{
 		BadgeLeaveSuccess:     "[+] 🎖️ HypeSquad: Đã gỡ bỏ thành công huy hiệu HypeSquad.\n",
 		BadgeError:            "[-] 🎖️ Lỗi thao tác huy hiệu: %v\n",
 		BadgeAutoEnrolling:    "[*] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Tự động nhận huy hiệu House of Bravery...\n",
+		BadgeDryRunJoin:       "[*] [DRY-RUN] 🎖️ Tối Ưu Huy Hiệu: Sẽ tham gia %s (chế độ giả lập, không thay đổi)\n",
+		BadgeDryRunLeave:      "[*] [DRY-RUN] 🎖️ HypeSquad: Sẽ rời khỏi nhà HypeSquad (chế độ giả lập, không thay đổi)\n",
+		BadgeDryRunAutoEnroll: "[*] [DRY-RUN] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Sẽ tự động nhận huy hiệu House of Bravery (chế độ giả lập, không thay đổi)\n",
 		SummaryHeader:         "\n======================= SUMMARY / TỔNG KẾT =======================",
 		SummaryBadges:         "[🎖️] Huy hiệu hồ sơ: %s\n",
 		SummaryQuestsDone:     "[✅] Trạng thái Quest: %d Đã xong / %d Tổng quest khả dụng\n",

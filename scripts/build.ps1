@@ -15,6 +15,7 @@ $ErrorActionPreference = "Stop"
 
 $VERSION = "1.1.3"
 $PROJECT_ROOT = Resolve-Path (Join-Path $PSScriptRoot "..")
+Set-Location $PROJECT_ROOT
 $DIST_DIR = Join-Path $PROJECT_ROOT "dist"
 $CMD_PATH = "./cmd/completer/"
 
@@ -31,6 +32,7 @@ if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
 Write-Host "==========================================================" -ForegroundColor Cyan
 Write-Host " Building Discord Quest Phantom v$VERSION" -ForegroundColor Cyan
 Write-Host " Using Go compiler: $GO_BIN" -ForegroundColor Cyan
+Write-Host " Working directory: $PROJECT_ROOT" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 $WIN_STAGING = Join-Path $DIST_DIR "windows/discord-quest-phantom-windows-amd64"
@@ -47,16 +49,19 @@ $LDFLAGS = "-s -w -X main.Version=$VERSION"
 Write-Host "[1/5] Compiling Windows x64 executable..." -ForegroundColor Yellow
 $env:GOOS = "windows"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
 & $GO_BIN build -trimpath -ldflags="$LDFLAGS" -o (Join-Path $WIN_STAGING "discord-quest-phantom.exe") $CMD_PATH
+if ($LASTEXITCODE -ne 0) { throw "Windows x64 compilation failed" }
 
 # 2. Linux x64
 Write-Host "[2/5] Cross-compiling Linux x64 static executable..." -ForegroundColor Yellow
 $env:GOOS = "linux"; $env:GOARCH = "amd64"; $env:CGO_ENABLED = "0"
 & $GO_BIN build -trimpath -ldflags="$LDFLAGS" -o (Join-Path $LINUX_AMD64_STAGING "discord-quest-phantom") $CMD_PATH
+if ($LASTEXITCODE -ne 0) { throw "Linux x64 compilation failed" }
 
 # 3. Linux arm64
 Write-Host "[3/5] Cross-compiling Linux arm64 static executable..." -ForegroundColor Yellow
 $env:GOOS = "linux"; $env:GOARCH = "arm64"; $env:CGO_ENABLED = "0"
 & $GO_BIN build -trimpath -ldflags="$LDFLAGS" -o (Join-Path $LINUX_ARM64_STAGING "discord-quest-phantom") $CMD_PATH
+if ($LASTEXITCODE -ne 0) { throw "Linux arm64 compilation failed" }
 
 # 4. Copy supporting assets
 Write-Host "[4/5] Copying configurations and documentation..." -ForegroundColor Yellow

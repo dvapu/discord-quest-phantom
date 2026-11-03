@@ -129,7 +129,7 @@ Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build 
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.2/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.3/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &

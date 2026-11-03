@@ -270,14 +270,17 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client,
 	}
 
 	fmt.Println(i18n.M().AllTasksFinished)
+	// Refresh final quest inventory & user identity for accurate session summary
+	if refreshedQuests, err := fetchQuests(ctx, cfg, apiClient); err == nil {
+		analyzedQuests = scanner.AnalyzeAll(refreshedQuests)
+	}
+	if refreshedUser, err := apiClient.ValidateToken(ctx); err == nil {
+		user = refreshedUser
+	}
 	printSessionSummary(user, analyzedQuests)
 }
 
 func handleBadgeMaximizer(ctx context.Context, cfg *config.Config, apiClient *api.Client, user *api.UserMe) *api.UserMe {
-	if cfg.DryRun && cfg.HypeSquad == "" {
-		return user
-	}
-
 	// 1. Explicit CLI HypeSquad action
 	if cfg.HypeSquad != "" {
 		houseID, isLeave, err := config.ParseHypeSquadAction(cfg.HypeSquad)
@@ -287,6 +290,10 @@ func handleBadgeMaximizer(ctx context.Context, cfg *config.Config, apiClient *ap
 		}
 
 		if isLeave {
+			if cfg.DryRun {
+				fmt.Print(i18n.M().BadgeDryRunLeave)
+				return user
+			}
 			fmt.Print(i18n.M().BadgeLeavingHypeSquad)
 			if err := apiClient.LeaveHypeSquad(ctx); err != nil {
 				fmt.Printf(i18n.M().BadgeError, err)
@@ -308,6 +315,11 @@ func handleBadgeMaximizer(ctx context.Context, cfg *config.Config, apiClient *ap
 			houseName = "House of Balance"
 		}
 
+		if cfg.DryRun {
+			fmt.Printf(i18n.M().BadgeDryRunJoin, houseName)
+			return user
+		}
+
 		fmt.Printf(i18n.M().BadgeJoiningHypeSquad, houseName)
 		if err := apiClient.JoinHypeSquad(ctx, houseID); err != nil {
 			fmt.Printf(i18n.M().BadgeError, err)
@@ -327,6 +339,10 @@ func handleBadgeMaximizer(ctx context.Context, cfg *config.Config, apiClient *ap
 			_, houseName := user.GetHypeSquadHouse()
 			fmt.Printf(i18n.M().BadgeAlreadyOwned, houseName)
 		} else {
+			if cfg.DryRun {
+				fmt.Print(i18n.M().BadgeDryRunAutoEnroll)
+				return user
+			}
 			fmt.Print(i18n.M().BadgeAutoEnrolling)
 			if err := apiClient.JoinHypeSquad(ctx, api.HypeSquadHouseBravery); err != nil {
 				fmt.Printf(i18n.M().BadgeError, err)

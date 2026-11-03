@@ -154,6 +154,11 @@ func (c *Client) SetLocale(locale, timezone string) {
 	c.superProps = BuildSuperPropertiesWithLocale(c.buildNumber, locale)
 }
 
+// SetAPIBaseForTesting overrides apiBase for unit tests using httptest.Server.
+func (c *Client) SetAPIBaseForTesting(url string) {
+	c.apiBase = url
+}
+
 func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Authorization", c.token)
 	req.Header.Set("Content-Type", "application/json")

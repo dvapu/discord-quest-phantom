@@ -15,6 +15,14 @@ import traceback
 from datetime import datetime, timezone
 from typing import Optional
 
+# Ensure UTF-8 output encoding on Windows console (cp1252 / cmd.exe)
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 # ── Config ─────────────────────────────────────────────────────────────────────
 API_BASE = "https://discord.com/api/v9"
 POLL_INTERVAL = 60          # seconds between quest scans
@@ -129,8 +137,10 @@ def make_super_properties(build_number: int) -> str:
 
 # ── HTTP helpers ───────────────────────────────────────────────────────────────
 class DiscordAPI:
-    def __init__(self, token: str, build_number: int):
+    def __init__(self, token: str, build_number: int, hypesquad_action: str = "", dry_run: bool = False):
         self.token = token
+        self.hypesquad_action = hypesquad_action
+        self.dry_run = dry_run
         self.session = requests.Session()
         ua = (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -194,10 +204,14 @@ class DiscordAPI:
                 if flags & (1 << 0): badges.append("Staff")
                 if flags & (1 << 1): badges.append("Partner")
                 if flags & (1 << 2): badges.append("HypeSquad Events")
+                if flags & (1 << 3): badges.append("Bug Hunter L1")
                 if flags & (1 << 6): badges.append("HypeSquad Bravery")
                 if flags & (1 << 7): badges.append("HypeSquad Brilliance")
                 if flags & (1 << 8): badges.append("HypeSquad Balance")
                 if flags & (1 << 9): badges.append("Early Supporter")
+                if flags & (1 << 14): badges.append("Bug Hunter L2")
+                if flags & (1 << 17): badges.append("Early Bot Dev")
+                if flags & (1 << 18): badges.append("Certified Mod")
                 if flags & (1 << 22): badges.append("Active Developer")
                 prem = user.get("premium_type", 0)
                 if prem == 1: badges.append("Nitro Classic")
@@ -208,10 +222,38 @@ class DiscordAPI:
                 log(f"Huy hiệu / Badges: {Colors.BOLD}{badge_str}{Colors.RESET}", "info")
 
                 has_hypesquad = bool(flags & ((1 << 6) | (1 << 7) | (1 << 8)))
-                if not has_hypesquad:
-                    log("Tự động nhận huy hiệu HypeSquad Bravery (Badge Maximizer)...", "info")
-                    if self.join_hypesquad(1):
-                        log("Mở khóa huy hiệu HypeSquad Bravery thành công!", "ok")
+                
+                # Check explicit or auto hypesquad actions
+                action = getattr(self, "hypesquad_action", "").lower().strip()
+                dry_run = getattr(self, "dry_run", False)
+
+                if action in ("leave", "0", "none", "remove"):
+                    if dry_run:
+                        log("[DRY-RUN] Sẽ rời khỏi HypeSquad (chế độ giả lập, không thay đổi)", "info")
+                    else:
+                        log("Đang rời khỏi nhà HypeSquad...", "info")
+                        if self.leave_hypesquad():
+                            log("Đã gỡ bỏ huy hiệu HypeSquad thành công!", "ok")
+                elif action in ("1", "bravery", "2", "brilliance", "3", "balance"):
+                    house_map = {"1": (1, "Bravery"), "bravery": (1, "Bravery"), "2": (2, "Brilliance"), "brilliance": (2, "Brilliance"), "3": (3, "Balance"), "balance": (3, "Balance")}
+                    hid, hname = house_map[action]
+                    if dry_run:
+                        log(f"[DRY-RUN] Sẽ tham gia HypeSquad {hname} (chế độ giả lập, không thay đổi)", "info")
+                    else:
+                        log(f"Đang tham gia HypeSquad {hname}...", "info")
+                        if self.join_hypesquad(hid):
+                            log(f"Mở khóa huy hiệu HypeSquad {hname} thành công!", "ok")
+                elif not has_hypesquad:
+                    if dry_run:
+                        log("[DRY-RUN] Tự động nhận huy hiệu HypeSquad Bravery (chế độ giả lập, không thay đổi)", "info")
+                    else:
+                        log("Tự động nhận huy hiệu HypeSquad Bravery (Badge Maximizer)...", "info")
+                        if self.join_hypesquad(1):
+                            log("Mở khóa huy hiệu HypeSquad Bravery thành công!", "ok")
+                else:
+                    house = "Bravery" if flags & (1 << 6) else ("Brilliance" if flags & (1 << 7) else "Balance")
+                    log(f"Tài khoản đã có huy hiệu HypeSquad {house}", "ok")
+
                 return True
             else:
                 log(f"Token không hợp lệ (status {r.status_code})", "error")
@@ -688,24 +730,39 @@ def main():
 ╚══════════════════════════════════════════════╝{Colors.RESET}
 """)
 
-    if len(sys.argv) > 1:
-        token = sys.argv[1].strip()
-    elif os.path.exists(".token"):
-        with open(".token", "r") as f:
-            token = f.read().strip()
-        log("Đọc token từ file .token / Read token from .token", "info")
-    else:
-        token = input(f"{Colors.BOLD}Enter Discord Token / Nhập Discord Token: {Colors.RESET}").strip()
+    import argparse
+    parser = argparse.ArgumentParser(description="Discord Quest Phantom & Badge Maximizer")
+    parser.add_argument("token", nargs="?", default="", help="Discord authorization token")
+    parser.add_argument("--token", dest="token_opt", default="", help="Discord token option")
+    parser.add_argument("--hypesquad", choices=["1", "2", "3", "bravery", "brilliance", "balance", "leave", "0"], default="", help="HypeSquad House action")
+    parser.add_argument("--dry-run", action="store_true", help="Simulate execution without modifying account or completing quests")
+    args, unknown = parser.parse_known_args()
+
+    token = (args.token or args.token_opt).strip()
+    if not token and len(unknown) > 0 and not unknown[0].startswith("-"):
+        token = unknown[0].strip()
+
+    if not token:
+        if os.path.exists(".token"):
+            with open(".token", "r") as f:
+                token = f.read().strip()
+            log("Đọc token từ file .token / Read token from .token", "info")
+        else:
+            token = input(f"{Colors.BOLD}Enter Discord Token / Nhập Discord Token: {Colors.RESET}").strip()
 
     if not token:
         log("Token is empty / Token trống – exiting.", "error")
         sys.exit(1)
 
     build_number = fetch_latest_build_number()
-    api = DiscordAPI(token, build_number)
+    api = DiscordAPI(token, build_number, hypesquad_action=args.hypesquad, dry_run=args.dry_run)
 
     if not api.validate_token():
         sys.exit(1)
+
+    if args.dry_run:
+        log("Chế độ giả lập (Dry-run) hoàn tất. Không có thay đổi nào được thực hiện.", "ok")
+        return
 
     completer = QuestAutocompleter(api)
 
