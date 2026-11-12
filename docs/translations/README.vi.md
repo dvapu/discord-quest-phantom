@@ -34,10 +34,10 @@
                                                     │
                 ┌───────────────────────────────────┼───────────────────────────────────┐
                 ▼                                   ▼                                   ▼
-    [1. QUÉT ĐA VÙNG (MULTI-REGION)]    [2. CHẠY SONG SONG (PARALLEL)]        [3. HUY HIỆU & CAPTCHA]
-  - Quét đồng thời US, JP và VN      - Chạy đồng thời 2-5 quest           - Tự dò IP LAN & tự đổi port
-  - Giả lập X-Super-Properties       - Tạo độ trễ ngẫu nhiên (Jitter)     - 🎖️ Mở khóa Huy hiệu HypeSquad tức thì
-  - Mở khóa khung avatar bị ẩn       - Hoàn thành 5 game trong 15 phút!   - Cứu cánh server SSH Linux
+    [1. QUÉT THEO VÙNG IP]              [2. CHẠY SONG SONG (PARALLEL)]        [3. HUY HIỆU & CAPTCHA]
+  - IP hiện tại trước, rồi proxy     - Chạy đồng thời 2-5 quest           - Tự dò IP LAN & tự đổi port
+  - Hợp nhất quest nhiều vùng        - Tạo độ trễ ngẫu nhiên (Jitter)     - 🎖️ Mở khóa Huy hiệu HypeSquad tức thì
+  - Báo rõ vùng nào bị lỗi           - Hoàn thành 5 game trong 15 phút!   - Cứu cánh server SSH Linux
                 │                                   │                                   │
                 └───────────────────────────────────┴───────────────────────────────────┘
                                                     │
@@ -70,9 +70,12 @@
    - Vòng lặp tiến độ tự dừng sau 5 lỗi liên tiếp hoặc 3 phút không được Discord chấp nhận tiến độ, có giãn cách chờ hợp lý.
    - Bảng danh sách quest gom các quest hết hạn thành **một dòng tổng kết** (dùng `-debug` để xem đầy đủ).
    - Chế độ daemon không còn in lại y nguyên bảng cũ ở mỗi chu kỳ quét.
-3. **🌍 Quét Đa Vùng Bộ Ba Vàng Tự Động (`--region all`)**:
-   - Khắc phục triệt để tình trạng nhiệm vụ và khung viền Avatar bị ẩn tại Việt Nam.
-   - Phantom tự động quét song song bộ ba vàng (`en-US`, `ja-JP`, `vi-VN`) giúp gom toàn bộ nhiệm vụ toàn cầu về danh sách, hoàn thành mọi nhiệm vụ độc quyền không cần cắm VPN!
+3. **🌍 Quét Quest Theo Vùng IP + Chống Bỏ Lỡ Nhiệm Vụ (`-region`, `-proxy`, `-proxy-file`)** — *cơ chế đã được sửa lại*:
+   - Discord quyết định **bạn có thấy nhiệm vụ hay không dựa trên IP gửi request** (quốc gia Discord nhìn thấy), không phải theo `client_locale` / `system_locale`. Đo thực tế trên một tài khoản: 22 kiểu header locale khác nhau trả về **cùng một danh sách 61 quest** (98 quest bị loại, ID giống hệt nhau), trong khi người dùng VPN thấy rõ quest riêng của quốc gia khác. Header locale chỉ đổi ngôn ngữ văn bản.
+   - Phantom quét **IP hiện tại trước**, sau đó tới từng proxy vùng bạn khai báo, hợp nhất kết quả theo ID quest và **gửi mọi request nhận/cày tiến độ của quest đó qua đúng proxy đã tìm ra nó** (metadata traffic_metadata_sealed gắn với vùng đó).
+   - Mỗi vùng được báo `OK`/`ERR` kèm số quest, số quest bị loại và thời gian phản hồi. Vùng lỗi được thử lại một lượt sau khi các vùng khỏe mạnh xong; vùng vẫn lỗi sẽ được in thành cảnh báo thay vì bỏ qua âm thầm.
+   - Request được xếp hàng tuần tự và tôn trọng `Retry-After`: Discord chỉ cho phép burst 2–3 request vào `/quests/@me` rồi trả `429`. Bản lưu inventory gần nhất giúp chống rỗng danh sách khi mạng chập chờn, còn `quest_access_suspended_until` / `quest_enrollment_blocked_until` khiến tool dừng lại trước khi bị phạt thêm.
+   - `-locale-sweep trio|all` vẫn còn cho mục đích thử nghiệm, mặc định tắt và **không** thay đổi điều kiện nhận quest.
 4. **⚡ Chạy Song Song 2–5 Game/Nhiệm Vụ (`-concurrency 5`)**:
    - Thay vì chạy tuần tự tốn 15p x 5 = 75 phút, Phantom hỗ trợ **xử lý song song tối đa 5 quest cùng một lúc** với luồng heartbeat độc lập. Hoàn thành 5 game chỉ vỏn vẹn trong **15 phút**!
 5. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
@@ -157,6 +160,7 @@ Sau đó bật và chạy dịch vụ:
 ```bash
 systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
+> Nếu dùng proxy theo vùng: thêm `-proxy-file /opt/discord-quest-phantom/proxies.txt` vào `ExecStart` và đặt file proxy cạnh binary. Không có proxy thì daemon chỉ quét IP của chính server.
 
 ---
 
@@ -166,7 +170,12 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 |---|---|---|
 | `-max-badge` | `true` | Tối ưu huy hiệu Discord (tự động nhận huy hiệu HypeSquad nếu chưa có) |
 | `-hypesquad` | `""` | Chọn nhà HypeSquad: `bravery` (1), `brilliance` (2), `balance` (3), hoặc `leave` (0) |
-| `-region` | `all` | Khu vực quét: `all` (Bộ Ba Vàng: US+JP+VN), `us`, `jp`, `vn` |
+| `-region` | `all` | Phạm vi quét: `all` (IP hiện tại + mọi proxy đã khai báo), `direct`, `full` (thêm toàn bộ locale), danh sách mã proxy/quốc gia (`us,br,jp`) hoặc locale Discord (`ja`) |
+| `-proxy` | `""` | Proxy thoát theo vùng: các cặp `MÃ=URL` cách nhau dấu phẩy (`us=socks5://…,br=http://…`) |
+| `-proxy-file` | `""` | File mỗi dòng một proxy `MÃ=URL` (dòng bắt đầu bằng `#` là chú thích) |
+| `-locale-sweep` | `off` | Quét header locale để thử nghiệm: `off`, `trio`, `all` (không đổi điều kiện nhận quest) |
+| `-sweep-pacing` | `3s` | Giãn cách tối thiểu giữa các request quét quest; tự tăng khi gặp HTTP 429 |
+| `-sweep-attempts` | `3` | Số lần thử cho mỗi vùng trước khi báo lỗi |
 | `-concurrency` | `5` | Số lượng quest chạy song song tối đa (1–5) |
 | `-daemon` | `false` | Chạy nền 24/7 như dịch vụ hệ thống, quét định kỳ tự động |
 | `-poll` | `60s` | Khoảng thời gian giãn cách giữa các lần quét khi bật daemon (vd: `15m`, `30m`) |
@@ -179,12 +188,64 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 
 ---
 
+## 🌐 Quét Quest Theo Vùng: Cơ Chế Thực Tế
+
+Discord quyết định **quest nào tài khoản được thấy dựa trên IP gửi request** (quốc gia Discord nhìn thấy), còn `X-Discord-Locale` / `Accept-Language` / `?locale=` chỉ đổi ngôn ngữ phản hồi. Đo trên tài khoản thật: 22 kiểu header locale trả về **cùng một danh sách quest** (61 quest, 98 quest bị loại, ID giống hệt), trong khi cộng đồng ghi nhận rõ ràng việc dùng VPN thoát ở quốc gia khác sẽ mở ra quest riêng của quốc gia đó.
+
+Vì vậy Phantom **không còn** quảng cáo rằng đổi locale sẽ mở khóa quest vùng. Cách chắc chắn để thấy mọi vùng là **gửi request từ mỗi vùng bạn quan tâm rồi hợp nhất kết quả**:
+
+```bash
+# proxies.txt — mỗi dòng một đầu ra vùng. Hỗ trợ http, https, socks5 và socks5h.
+us=socks5://user:pass@us-exit.example:1080
+ca=http://ca-exit.example:8080
+br=socks5://br-exit.example:1080
+jp=http://jp-exit.example:8080
+
+# Quét IP hiện tại + toàn bộ proxy rồi chạy quest bình thường:
+discord-quest-phantom -region all -proxy-file proxies.txt
+
+# Hoặc chỉ quét thêm một vùng (vẫn giữ góc nhìn IP hiện tại):
+discord-quest-phantom -proxy "us=socks5://127.0.0.1:1080" -region us
+```
+
+Những gì cơ chế quét đảm bảo:
+
+* **Luôn quét IP hiện tại trước.** Góc nhìn của chính tài khoản luôn được hỏi đầu tiên; proxy hỏng không thể làm mất quest.
+* **Hợp nhất + gắn vùng cho từng quest.** Quest trùng ID được gộp; mọi request nhận/cày của quest được gửi qua đúng proxy đã tìm ra nó, kèm header `X-Discord-Locale` / `X-Discord-Timezone` tương ứng.
+* **Không bỏ lỡ âm thầm.** Mỗi vùng báo `OK`/`ERR`, số quest, số quest bị loại và thời gian phản hồi. Vùng lỗi được thử lại sau khi các vùng khác xong, danh sách vẫn lỗi được in rõ.
+* **Giãn cách theo rate limit.** Discord chỉ cho burst 2–3 request vào `GET /quests/@me` (thực đo: sau đó trả `429` với `retry_after` 5–10s). Request được xếp hàng với giãn cách cấu hình được (mặc định 3s), tự nâng khi gặp `429` và thử lại theo `Retry-After`.
+* **Bản lưu dự phòng.** Inventory đầy đủ được lưu vào thư mục cache; nếu lượt sau bị thiếu vùng (429/5xx), các quest còn hạn thấy trong 15 phút gần nhất được gộp lại thay vì biến mất âm thầm. Quest khôi phục từ bản lưu vẫn hiển thị nhưng không tự nhận vì metadata đã cũ.
+* **Tôn trọng khóa tài khoản.** `quest_access_suspended_until` dừng toàn bộ request quest; `quest_enrollment_blocked_until` bỏ qua bước tự nhận quest. Tool in mốc thời gian thay vì thử lại tới khi bị phạt nặng hơn.
+
+### Vì sao vẫn có quest hiển thị là "bị loại"?
+
+`GET /quests/@me` còn trả về `excluded_quests` — các quest Discord không cho tài khoản này tham gia (theo vùng, nền tảng, điều kiện, hoặc đã được thay thế bằng chiến dịch khác). Mục này chỉ có ID, không có config đầy đủ. Phantom in số lượng và tiếp tục quét; thêm proxy đúng vùng là cách đưa quest từ `excluded_quests` sang `quests` để cày được.
+
+### Quét locale kiểu cũ
+
+`-locale-sweep trio` / `-locale-sweep all` vẫn thêm các lượt chỉ đổi locale, nay dùng đúng mã locale của Discord (`ja` thay vì `ja-JP`, `vi` thay vì `vi-VN`). Mặc định tắt vì tốn thêm request bị rate limit mà không đổi điều kiện nhận quest.
+
+---
+
+## 🧯 Khắc Phục Sự Cố Nhanh
+
+| Hiện tượng | Nguyên nhân | Cách xử lý |
+|---|---|---|
+| Thấy ít quest hơn bạn bè ở nước khác; quest vùng không bao giờ xuất hiện | Điều kiện quest theo IP gửi request, không theo locale | Thêm proxy đúng vùng bằng `-proxy` / `-proxy-file`; Phantom sẽ hợp nhất góc nhìn địa phương và proxy |
+| Dòng `HTTP 429: rate limited` khi quét | Discord chỉ cho burst rất nhỏ ở `/quests/@me` | Giữ giãn cách mặc định hoặc tăng `-sweep-pacing`; giảm số proxy hoặc poll thưa hơn |
+| Thông báo `QUEST ACCESS SUSPENDED` / bị chặn nhận quest | Discord tạm khóa quest trên tài khoản (do cơ chế chống automation) | Chờ tới mốc thời gian được in ra; tool cố ý dừng thay vì thử lại |
+
+---
+
 ## 🛡️ Phân Tích An Toàn & Cơ Chế Chống Ban (Anti-Ban)
 
 * **Không Bao Giờ Tự Động Nhận Thưởng (Zero Auto-Claim)**: Phantom chỉ làm nhiệm vụ đạt 100% tiến độ và dừng lại, để bạn vào Discord bấm **Claim Reward** bằng tay trong phần Kho Quà Tặng. Đây là nguyên tắc cốt lõi giúp 100% tài khoản an toàn tuyệt đối trước các đợt quét bot.
 * **Định Danh Trình Duyệt Thực Tế (X-Super-Properties)**: Gói tin chứa fingerprint chuẩn của Discord Desktop x64 (`os`, `browser`, `os_version`, `client_version`).
 * **Cào Build Number Động Từ Discord CDN**: Luôn cào build number mới nhất của Discord mỗi khi khởi động, không bao giờ dùng build lỗi thời.
 * **Thời Gian Ngẫu Nhiên (Jitter Delay)**: Mọi khoảng thời gian gửi heartbeat và video timestamp đều được cộng thêm độ trễ ngẫu nhiên để tránh bị phát hiện theo chu kỳ máy móc bay pattern.
+* **Quét có kiểm soát**: Request `/quests/@me` được xếp hàng tuần tự, tôn trọng `Retry-After`, không bắn song song qua nhiều proxy — tránh đẩy tài khoản vào vòng xoáy rate-limit.
+* **Nhận biết khóa quest**: Đọc `quest_access_suspended_until` / `quest_enrollment_blocked_until` và dừng đúng lúc thay vì gửi tiếp vào tài khoản đã bị gắn cờ.
+* **Nhất quán theo vùng**: Mọi thao tác quest đi qua đúng proxy đã tìm ra quest, header locale/timezone và `client_build_number` hiện hành.
 
 ---
 
@@ -193,12 +254,14 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
 discord-quest-phantom/
 ├── cmd/
-│   └── completer/main.go       # Bộ điều phối trung tâm (Parallel Runner + Spoofer)
+│   ├── completer/main.go       # Bộ điều phối trung tâm (quét vùng + Parallel Runner + Spoofer)
+│   └── test_regions/main.go    # Benchmark quét vùng/proxy (nhiều lượt, quest độc quyền, xuất JSON)
 ├── pkg/
-│   ├── api/                    # Discord REST Client, cào CDN Build, Video & Heartbeat
+│   ├── api/                    # REST client, động cơ quét vùng, cào CDN Build, Video & Heartbeat
 │   ├── captcha/                # Cổng web giải Captcha mạng LAN nội bộ
 │   ├── config/                 # Quản lý cấu hình & nhận diện Token tự động
 │   ├── i18n/                   # Hệ thống dịch thuật song ngữ (Việt - Anh) 0 dependency
+│   ├── inventory/              # Bản lưu inventory gần nhất (chống mất quest khi mạng lỗi)
 │   ├── scanner/                # Phân loại trạng thái quest & điều phối chu kỳ
 │   ├── spoofer/                # Giả lập tiến trình game Win32 & Linux /proc
 │   └── updater/                # Kiểm tra cập nhật tự động từ GitHub Releases

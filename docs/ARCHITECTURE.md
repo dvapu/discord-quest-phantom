@@ -863,3 +863,48 @@ def robust_api_call(session, method, url, payload=None, max_retries=4):
 3. **Long-Term Evolution (Phase 2)**: Transition the stabilized architecture into a standalone Tauri v2 + Rust desktop application with a modern user interface.
 
 *Authored and verified for the engineering team by Worker M1.*
+
+
+---
+
+## Addendum (2026-11-12): Regional Quest Discovery — Measured Behaviour & v1.2 Sweep Engine
+
+### Empirical findings (live account, 61-quest inventory)
+
+| Experiment | Method | Result |
+|---|---|---|
+| Locale headers vs quest list | `GET /quests/@me` with `X-Discord-Locale`, `Accept-Language`, `X-Super-Properties` `system_locale`/`client_locale` and `?locale=` set to 22 different values (en-US, en-GB, ja, ko, zh-CN, zh-TW, vi, th, hi, id, de, fr, es-ES, es-419, pt-BR, ru, tr, pl, it, nl, sv-SE, no) | **Identical response every time**: 61 quests, 98 excluded quests, same IDs. Locale changes only the language, not eligibility. |
+| Repeated reads | Two passes per locale, interleaved | Byte-identical quest sets per locale; no transient partial responses observed. |
+| Rate limiting | Sequential reads with ~650ms pacing | After a 2–3 request burst every subsequent request returned `429`, with `retry_after` ≈ 5–10s. No `X-RateLimit-*` headers on either success or 429 (Cloudflare-style). |
+| Response schema | Raw payload inspection | Keys: `quests`, `excluded_quests`, `quest_enrollment_blocked_until`, `quest_access_suspended_until`. Excluded entries are `{id, replacement_id?}` only — no config, no task data. |
+| Client-side filters | Discord client bundle (web.js, v1.0.9175) | Client keeps quests where `claimedAt != null || rewardsConfig.platforms.length > 0`, drops config-version mismatches, and stores `excluded_quests` separately. Claimed inventory endpoint: `GET /quests/@me/claimed`. |
+| Locale authenticity | Same payloads | Discord's canonical locale identifiers are `ja`, `vi`, `ko`, `de`, `zh-CN`, `en-US`… — the old `ja-JP` / `vi-VN` spellings are not canonical client locales. |
+| Third-party evidence | Region-lock bypass guides, Orion (nyxxbit/discord-quest-completer), Gemini grounded research | Quest availability is driven by **IP geolocation**: a USA VPN on discord.com reveals USA quests. No source documents locale headers changing eligibility. Orion does not rotate proxies; it reads the desktop client's QuestStore. |
+
+### Conclusions that shaped the engine
+
+1. **The "Golden Trio" locale trick cannot reveal region-locked quests.** It only duplicated the same payload three times and burned the tight rate-limit budget — the opposite of reliability.
+2. **True cross-region coverage requires different egress IPs.** The sweep therefore models *targets*: local egress first, then every configured HTTP/HTTPS/SOCKS5 proxy, optionally language-only locale probes.
+3. **The dominant real-world failure mode was silent target loss, not missing locale tricks.** Discovery used to ignore per-locale errors, retry only 429 inline, and abort a pass on a failed post-enrollment refresh. Under the observed rate limits this produced intermittent "missing quest" passes.
+4. **Discord now enforces quest automation** (2026 waves of 14–15 day Quest Access suspensions). A tool that keeps enrolling/heartbeating through `quest_access_suspended_until` is actively dangerous. The engine must treat both gate fields as hard stops.
+
+### v1.2 discovery engine (pkg/api)
+
+- `BuildTargets` parses `-region`, `-proxy`, `-proxy-file`, `-locale-sweep` into `[]RegionTarget{Code, Locale, Timezone, ProxyURL, Kind}`. The local egress is always first; unknown tokens fail fast instead of being silently ignored.
+- `RegionTransport` is an `http.RoundTripper` that reads `RegionInfo` from the request context and picks the matching proxy transport; every quest-owning request (enroll, heartbeat, video-progress) is routed through the proxy that discovered the quest.
+- `SweepQuests` performs a paced, serialized multi-target pass:
+  - adaptive pacer: 3s floor by default, raised to `retry_after + buffer` after 429 and decayed on success;
+  - retryable classification: network errors, 408, 429, 5xx; 401/403 abort the pass (token/Cloudflare);
+  - union + dedupe by quest ID, provenance (`SeenIn`), first-target ownership of `traffic_metadata_sealed`, excluded-quest union, gate timestamp propagation;
+  - a recovery pass for failed targets after healthy ones; per-target report (`OK`/`ERR`, attempts, status, quest/excluded counts, latency);
+  - partial success returns data plus a report; total failure returns the partial result and an error so the caller can fall back.
+- `inventory` package persists the last complete quest list (atomic rename, per-user id, 15 min max age). If a later sweep is incomplete (any target failed), unexpired unclaimed snapshot quests are merged into the live union so a single 429 cannot hide a region; snapshot-restored quests are not auto-enrolled because their sealed metadata is stale. A complete sweep is authoritative and never resurrects old quests.
+- Post-enrollment refresh was removed from the hot path: successful enrollments mark their local state as enrolled (`scanner.ApplyEnrolledState`), so a 429 during refresh can no longer abort the pass before quests run.
+- `cmd/test_regions` is now a real benchmark: multiple passes, per-target table, cross-pass deltas (transient gaps), region-exclusive quests, active counts, JSON export.
+
+### Residual limits
+
+- Proxy quality dominates results. Datacenter/free VPN exit nodes can be blocked at `/claim-reward` and may see fewer quests than residential exits; the sweep cannot fix a bad exit.
+- A quest is only completable from a region where Discord counts the IP; enrollment metadata is bound to that fetch, which is why per-quest region routing matters.
+- The account may still be ineligible for a campaign even from the right country (platform filters, already claimed, replaced campaign, aged-gated activity).
+- `quest_access_suspended_until` is enforced by the UI and by account standing, not by the request path; tool-side gating is a safety policy, not a guarantee.

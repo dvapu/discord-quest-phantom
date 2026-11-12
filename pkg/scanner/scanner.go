@@ -197,13 +197,34 @@ func AnalyzeAll(rawQuests []api.Quest) []AnalyzedQuest {
 	return analyzed
 }
 
-// AutoEnrollPending automatically enrolls into all un-enrolled active quests.
-// When quiet is true, per-quest progress lines are suppressed (daemon mode).
-func AutoEnrollPending(ctx context.Context, client *api.Client, quests []AnalyzedQuest, enablePortal bool, portalPort int, quiet bool) (int, error) {
-	enrolledCount := 0
+// AutoEnrollPending automatically enrolls into all un-enrolled active quests and
+// returns the IDs that were successfully enrolled. When quiet is true, per-quest
+// progress lines are suppressed (daemon mode).
+func AutoEnrollPending(ctx context.Context, client *api.Client, quests []AnalyzedQuest, enablePortal bool, portalPort int, quiet bool) ([]string, error) {
+	enrolled := make([]string, 0, len(quests))
 	for _, q := range quests {
 		if q.State != StateAvailable || q.IsExpired {
 			continue
+		}
+		if q.Quest.FromCache {
+			// Snapshot quests carry stale sealed traffic metadata; enrolling them
+			// is likely to fail and wastes rate-limit budget.
+			continue
+		}
+		if q.Quest.RegionProxied && q.Region != "" && !client.HasRegionProxy(q.Region) {
+			// The proxy that discovered this quest is no longer configured.
+			continue
+		}
+		// Enroll through the region that discovered the quest: Discord binds the
+		// sealed traffic metadata to the fetch IP, so a direct request for a
+		// proxy-discovered quest can be rejected.
+		questCtx := ctx
+		if q.Region != "" {
+			questCtx = api.WithRegionInfo(ctx, api.RegionInfo{
+				Code:     q.Region,
+				Locale:   q.Quest.DiscoveredLocale,
+				Timezone: q.Quest.DiscoveredTimezone,
+			})
 		}
 
 		if !quiet {
@@ -213,7 +234,7 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 				fmt.Printf(" [Auto-Enroll] Enrolling in quest: %s (%s) [%s]...\n", q.Title, q.ID, q.Category.Localized())
 			}
 		}
-		err := client.EnrollQuest(ctx, q.Quest)
+		err := client.EnrollQuest(questCtx, q.Quest)
 		if err != nil {
 			var captchaErr *api.CaptchaRequiredError
 			if errors.As(err, &captchaErr) {
@@ -231,9 +252,9 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 
 					if solveErr == nil && token != "" {
 						fmt.Printf(i18n.M().CaptchaSolvedSuccess, q.Title)
-						enrollErr := client.EnrollQuestWithCaptcha(ctx, q.Quest, token, captchaErr.CaptchaRqtoken)
+						enrollErr := client.EnrollQuestWithCaptcha(questCtx, q.Quest, token, captchaErr.CaptchaRqtoken)
 						if enrollErr == nil {
-							enrolledCount++
+							enrolled = append(enrolled, q.ID)
 							continue
 						}
 						fmt.Printf(" [-] Error enrolling after captcha: %v\n", enrollErr)
@@ -258,15 +279,40 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 			}
 			continue
 		}
-		enrolledCount++
+		enrolled = append(enrolled, q.ID)
 		// Polite delay between enrollments to respect Discord burst rate limits
 		select {
 		case <-ctx.Done():
-			return enrolledCount, ctx.Err()
+			return enrolled, ctx.Err()
 		case <-time.After(2500 * time.Millisecond):
 		}
 	}
-	return enrolledCount, nil
+	return enrolled, nil
+}
+
+// ApplyEnrolledState marks the given quest IDs as enrolled in place so a pass can
+// continue without spending another rate-limited quest refetch.
+func ApplyEnrolledState(quests []AnalyzedQuest, enrolledIDs []string) int {
+	if len(enrolledIDs) == 0 || len(quests) == 0 {
+		return 0
+	}
+	wanted := make(map[string]bool, len(enrolledIDs))
+	for _, id := range enrolledIDs {
+		wanted[id] = true
+	}
+	updated := 0
+	for i := range quests {
+		if !wanted[quests[i].ID] {
+			continue
+		}
+		if quests[i].State == StateClaimed || quests[i].State == StateCompleted {
+			continue
+		}
+		quests[i].State = StateEnrolled
+		quests[i].IsExpired = false
+		updated++
+	}
+	return updated
 }
 
 // FormatQuestTable returns a clean CLI overview of quests with categories.

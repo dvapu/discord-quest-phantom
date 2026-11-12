@@ -5,25 +5,30 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Client handles authenticated requests to Discord REST API endpoints.
 type Client struct {
 	httpClient  *http.Client
+	transport   *RegionTransport
 	apiBase     string
 	token       string
 	userAgent   string
-	superProps  string
 	timezone    string
 	buildNumber int
 	locale      string
+	stateMu     sync.RWMutex
+	propsMu     sync.Mutex
+	propsCache  map[string]string
 }
 
 // BuildSuperPropertiesWithLocale produces a base64-encoded client fingerprint JSON string for a specific locale.
@@ -127,31 +132,62 @@ func NewClient(token string, buildNumber int) *Client {
 	if buildNumber <= 0 {
 		buildNumber = 626571
 	}
-	locale := "en-US"
-	timezone := "America/New_York"
+	regionTransport := NewRegionTransport()
 	return &Client{
-		httpClient:  &http.Client{Timeout: 20 * time.Second},
+		httpClient:  &http.Client{Timeout: 20 * time.Second, Transport: regionTransport},
+		transport:   regionTransport,
 		apiBase:     "https://discord.com/api/v9",
 		token:       token,
 		userAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9175 Chrome/128.0.6613.186 Electron/32.2.7 Safari/537.36",
-		superProps:  BuildSuperPropertiesWithLocale(buildNumber, locale),
-		timezone:    timezone,
+		timezone:    "America/New_York",
+		locale:      "en-US",
 		buildNumber: buildNumber,
-		locale:      locale,
+		propsCache:  make(map[string]string),
 	}
 }
 
-// SetLocale dynamically reconfigures client locale, timezone, and super properties fingerprint.
+// SetRegionProxy registers a regional proxy for a sweep target code. Every
+// request made with api.WithRegionInfo for that code is tunneled through it.
+func (c *Client) SetRegionProxy(code, proxyURL string) error {
+	if c.transport == nil {
+		return fmt.Errorf("client transport is unavailable")
+	}
+	return c.transport.SetProxy(code, proxyURL)
+}
+
+// RemoveRegionProxy unregisters a regional proxy.
+func (c *Client) RemoveRegionProxy(code string) {
+	if c.transport != nil {
+		c.transport.RemoveProxy(code)
+	}
+}
+
+// HasRegionProxy reports whether a proxy is registered for a region code.
+func (c *Client) HasRegionProxy(code string) bool {
+	if c.transport == nil {
+		return false
+	}
+	return c.transport.HasProxy(code)
+}
+
+// CloseIdleConnections releases pooled connections held by every route.
+func (c *Client) CloseIdleConnections() {
+	if c.transport != nil {
+		c.transport.CloseIdleConnections()
+	}
+}
+
+// SetLocale changes the default locale/timezone used when a request has no
+// explicit region or locale override.
 func (c *Client) SetLocale(locale, timezone string) {
-	if locale == "" {
-		locale = "en-US"
+	c.stateMu.Lock()
+	defer c.stateMu.Unlock()
+	if locale != "" {
+		c.locale = locale
 	}
-	if timezone == "" {
-		timezone = "America/New_York"
+	if timezone != "" {
+		c.timezone = timezone
 	}
-	c.locale = locale
-	c.timezone = timezone
-	c.superProps = BuildSuperPropertiesWithLocale(c.buildNumber, locale)
 }
 
 // SetAPIBaseForTesting overrides apiBase for unit tests using httptest.Server.
@@ -159,15 +195,62 @@ func (c *Client) SetAPIBaseForTesting(url string) {
 	c.apiBase = url
 }
 
+// requestSettings resolves the effective locale/timezone for one request.
+func (c *Client) requestSettings(ctx context.Context) (string, string) {
+	c.stateMu.RLock()
+	locale := c.locale
+	timezone := c.timezone
+	c.stateMu.RUnlock()
+	if override, ok := localeOverrideFromContext(ctx); ok {
+		if override.Locale != "" {
+			locale = override.Locale
+		}
+		if override.Timezone != "" {
+			timezone = override.Timezone
+		}
+	}
+	if info, ok := RegionInfoFromContext(ctx); ok {
+		if info.Locale != "" {
+			locale = info.Locale
+		}
+		if info.Timezone != "" {
+			timezone = info.Timezone
+		}
+	}
+	if locale == "" {
+		locale = "en-US"
+	}
+	if timezone == "" {
+		timezone = "America/New_York"
+	}
+	return locale, timezone
+}
+
+// superPropsFor caches the base64 client fingerprint per locale.
+func (c *Client) superPropsFor(locale string) string {
+	c.propsMu.Lock()
+	defer c.propsMu.Unlock()
+	if c.propsCache == nil {
+		c.propsCache = make(map[string]string)
+	}
+	if cached, ok := c.propsCache[locale]; ok {
+		return cached
+	}
+	props := BuildSuperPropertiesWithLocale(c.buildNumber, locale)
+	c.propsCache[locale] = props
+	return props
+}
+
 func (c *Client) setHeaders(req *http.Request) {
+	locale, timezone := c.requestSettings(req.Context())
 	req.Header.Set("Authorization", c.token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("User-Agent", c.userAgent)
-	req.Header.Set("X-Super-Properties", c.superProps)
-	req.Header.Set("X-Discord-Locale", c.locale)
-	req.Header.Set("X-Discord-Timezone", c.timezone)
-	req.Header.Set("Accept-Language", c.locale+",en;q=0.9")
+	req.Header.Set("X-Super-Properties", c.superPropsFor(locale))
+	req.Header.Set("X-Discord-Locale", locale)
+	req.Header.Set("X-Discord-Timezone", timezone)
+	req.Header.Set("Accept-Language", locale+",en;q=0.9")
 	req.Header.Set("Origin", "https://discord.com")
 	req.Header.Set("Referer", "https://discord.com/channels/@me")
 }
@@ -253,202 +336,103 @@ func (c *Client) ValidateToken(ctx context.Context) (*UserMe, error) {
 	return &user, nil
 }
 
-// FetchQuests queries GET /api/v9/quests/@me with automatic rate-limit backoff.
+// FetchQuests queries GET /api/v9/quests/@me with retry/backoff handling.
 func (c *Client) FetchQuests(ctx context.Context) ([]Quest, error) {
-	maxRetries := 3
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, "GET", c.apiBase+"/quests/@me", nil)
-		if err != nil {
-			return nil, fmt.Errorf("create quests request failed: %w", err)
-		}
-		c.setHeaders(req)
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("request /quests/@me failed: %w", err)
-		}
-
-		bodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("failed reading /quests/@me response: %w", err)
-		}
-
-		if resp.StatusCode == http.StatusTooManyRequests {
-			retryDuration := parseRetryAfter(resp, bodyBytes)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(retryDuration + 1*time.Second):
-				continue
-			}
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("fetching quests failed: HTTP %d: %s", resp.StatusCode, string(bodyBytes))
-		}
-
-		var qResp QuestResponse
-		if err := json.Unmarshal(bodyBytes, &qResp); err == nil && len(qResp.Quests) > 0 {
-			return qResp.Quests, nil
-		}
-
-		var rawQuests []Quest
-		if err := json.Unmarshal(bodyBytes, &rawQuests); err == nil && len(rawQuests) > 0 {
-			return rawQuests, nil
-		}
-
-		if err == nil {
-			return qResp.Quests, nil
-		}
-
-		return nil, fmt.Errorf("unable to decode quest response structure")
-	}
-
-	return nil, fmt.Errorf("exceeded max retries fetching quests")
+	return c.fetchQuestsRetrying(ctx, 3)
 }
 
-// FetchQuestsWithLocale queries GET /api/v9/quests/@me with specified locale and timezone.
+// fetchQuestsRetrying fetches the quest payload, retrying transient failures.
+func (c *Client) fetchQuestsRetrying(ctx context.Context, maxAttempts int) ([]Quest, error) {
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if attempt > 1 {
+			if !sleepContext(ctx, time.Duration(attempt-1)*800*time.Millisecond) {
+				return nil, ctx.Err()
+			}
+		}
+		payload, status, body, retryAfter, err := c.doQuestFetch(ctx)
+		if err != nil {
+			lastErr = err
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return nil, err
+			}
+			continue
+		}
+		if status == http.StatusOK && payload != nil {
+			return payload.Quests, nil
+		}
+		if status == http.StatusTooManyRequests {
+			if retryAfter <= 0 {
+				retryAfter = 3 * time.Second
+			}
+			lastErr = fmt.Errorf("rate limited (HTTP 429), retry after %v", retryAfter)
+			if !sleepContext(ctx, retryAfter+time.Second) {
+				return nil, ctx.Err()
+			}
+			continue
+		}
+		return nil, fmt.Errorf("fetching quests failed: HTTP %d: %s", status, truncateBody(body))
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("fetching quests failed")
+	}
+	return nil, lastErr
+}
+
+// FetchQuestsWithLocale queries GET /api/v9/quests/@me with explicit locale
+// headers without mutating the shared client state.
 func (c *Client) FetchQuestsWithLocale(ctx context.Context, locale, timezone string) ([]Quest, error) {
-	prevLocale := c.locale
-	prevTz := c.timezone
-	prevProps := c.superProps
-	c.SetLocale(locale, timezone)
-	defer func() {
-		c.locale = prevLocale
-		c.timezone = prevTz
-		c.superProps = prevProps
-	}()
-
-	url := fmt.Sprintf("%s/quests/@me?locale=%s", c.apiBase, locale)
-	maxRetries := 3
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if err != nil {
-			return nil, fmt.Errorf("create quests request failed: %w", err)
-		}
-		c.setHeaders(req)
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, fmt.Errorf("request /quests/@me failed: %w", err)
-		}
-
-		bodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("failed reading /quests/@me response: %w", err)
-		}
-
-		if resp.StatusCode == http.StatusTooManyRequests {
-			retryDuration := parseRetryAfter(resp, bodyBytes)
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(retryDuration + 1*time.Second):
-				continue
-			}
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("fetching quests failed: HTTP %d: %s", resp.StatusCode, string(bodyBytes))
-		}
-
-		var qResp QuestResponse
-		if err := json.Unmarshal(bodyBytes, &qResp); err == nil && len(qResp.Quests) > 0 {
-			return qResp.Quests, nil
-		}
-
-		var rawQuests []Quest
-		if err := json.Unmarshal(bodyBytes, &rawQuests); err == nil && len(rawQuests) > 0 {
-			return rawQuests, nil
-		}
-
-		if err == nil {
-			return qResp.Quests, nil
-		}
-
-		return nil, fmt.Errorf("unable to decode quest response structure")
-	}
-
-	return nil, fmt.Errorf("exceeded max retries fetching quests")
+	return c.fetchQuestsRetrying(withLocaleOverride(ctx, locale, timezone), 3)
 }
 
-// FetchQuestsMultiRegion discovers quests across multiple regions (e.g. US, JP, VN) and deduplicates them.
+// FetchQuestsMultiRegion is the legacy multi-locale entry point kept for
+// compatibility. New code should call SweepQuests with BuildTargets instead.
 func (c *Client) FetchQuestsMultiRegion(ctx context.Context, regions []string) ([]Quest, error) {
-	type targetLocale struct {
-		code     string
-		locale   string
-		timezone string
-	}
-
-	var targets []targetLocale
-	wantUS := false
-	wantJP := false
-	wantVN := false
-
+	targets := make([]RegionTarget, 0, len(regions)+1)
 	if len(regions) == 0 {
-		wantUS = true
-		wantJP = true
-		wantVN = true
-	} else {
-		for _, r := range regions {
-			switch strings.ToLower(strings.TrimSpace(r)) {
-			case "all", "":
-				wantUS = true
-				wantJP = true
-				wantVN = true
-			case "us", "en", "en-us":
-				wantUS = true
-			case "jp", "ja", "ja-jp":
-				wantJP = true
-			case "vn", "vi", "vi-vn":
-				wantVN = true
-			}
+		targets = append(targets, DirectTarget())
+	}
+	for _, raw := range regions {
+		token := strings.TrimSpace(raw)
+		if token == "" || strings.EqualFold(token, "all") {
+			targets = append(targets, DirectTarget())
+			continue
+		}
+		if preset, ok := regionPresets[strings.ToUpper(token)]; ok {
+			targets = append(targets, RegionTarget{
+				Code:     "L:" + strings.ToUpper(token),
+				Locale:   preset.Locale,
+				Timezone: preset.Timezone,
+				Kind:     TargetLocale,
+			})
+			continue
+		}
+		if locale, ok := NormalizeDiscordLocale(token); ok {
+			targets = append(targets, RegionTarget{
+				Code:     "L:" + locale,
+				Locale:   locale,
+				Timezone: timezoneForLocale(locale),
+				Kind:     TargetLocale,
+			})
 		}
 	}
-
-	if wantUS {
-		targets = append(targets, targetLocale{code: "US", locale: "en-US", timezone: "America/New_York"})
+	if len(targets) == 0 {
+		targets = append(targets, DirectTarget())
 	}
-	if wantJP {
-		targets = append(targets, targetLocale{code: "JP", locale: "ja-JP", timezone: "Asia/Tokyo"})
+	opts := DefaultSweepOptions()
+	opts.MinInterval = 500 * time.Millisecond
+	opts.MaxInterval = 5 * time.Second
+	result, err := c.SweepQuests(ctx, targets, opts)
+	if err != nil && (result == nil || len(result.Quests) == 0) {
+		return c.FetchQuests(ctx)
 	}
-	if wantVN {
-		targets = append(targets, targetLocale{code: "VN", locale: "vi-VN", timezone: "Asia/Ho_Chi_Minh"})
+	if result == nil {
+		return c.FetchQuests(ctx)
 	}
-
-	seen := make(map[string]bool)
-	var aggregated []Quest
-
-	for i, t := range targets {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-		}
-
-		quests, err := c.FetchQuestsWithLocale(ctx, t.locale, t.timezone)
-		if err == nil {
-			for _, q := range quests {
-				if !seen[q.ID] {
-					seen[q.ID] = true
-					q.DiscoveredRegion = t.code
-					aggregated = append(aggregated, q)
-				}
-			}
-		}
-
-		if i < len(targets)-1 {
-			time.Sleep(500 * time.Millisecond) // Polite pacing between regional sweeps
-		}
-	}
-
-	if len(aggregated) > 0 {
-		return aggregated, nil
-	}
-
-	return c.FetchQuests(ctx)
+	return result.Quests, nil
 }
 
 // EnrollQuestWithCaptcha sends enrollment payload to POST /api/v9/quests/{qid}/enroll, optionally with captcha solution.

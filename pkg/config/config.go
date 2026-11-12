@@ -14,27 +14,32 @@ import (
 
 // Config represents the application runtime configuration.
 type Config struct {
-	Token        string
-	PollInterval time.Duration
-	AutoAccept   bool
-	Debug        bool
-	APIBase      string
-	DryRun       bool
-	CacheDir     string
-	RunStub      bool
-	StubTitle    string
-	QuestID      string
-	Duration     time.Duration
-	UseSpoofer   bool
-	KeepOpen     bool
-	Lang         string
-	Region       string
-	EnablePortal bool
-	PortalPort   int
-	Concurrency  int
-	Daemon       bool
-	HypeSquad    string
-	MaxBadge     bool
+	Token         string
+	PollInterval  time.Duration
+	AutoAccept    bool
+	Debug         bool
+	APIBase       string
+	DryRun        bool
+	CacheDir      string
+	RunStub       bool
+	StubTitle     string
+	QuestID       string
+	Duration      time.Duration
+	UseSpoofer    bool
+	KeepOpen      bool
+	Lang          string
+	Region        string
+	Proxy         string
+	ProxyFile     string
+	LocaleSweep   string
+	SweepPacing   time.Duration
+	SweepAttempts int
+	EnablePortal  bool
+	PortalPort    int
+	Concurrency   int
+	Daemon        bool
+	HypeSquad     string
+	MaxBadge      bool
 }
 
 // ParseHypeSquadAction parses a user string for HypeSquad House enrollment/leaving.
@@ -160,7 +165,12 @@ func LoadConfig() (*Config, error) {
 	flag.BoolVar(&cfg.UseSpoofer, "spoofer", false, "Enable OS Process Spoofer mode (requires Discord Desktop running)")
 	flag.BoolVar(&cfg.KeepOpen, "keep-open", true, "Wait for keypress before exiting (prevents instant window closing on double-click)")
 	flag.StringVar(&cfg.Lang, "lang", "auto", "Language / Ngôn ngữ (auto, en, vi)")
-	flag.StringVar(&cfg.Region, "region", "all", "Region for quest discovery: all (US+JP+VN), us, jp, vn")
+	flag.StringVar(&cfg.Region, "region", "all", "Quest sweep scope: all (local egress + every configured proxy), direct, full (also all locales), a country code / proxy code list, or a Discord locale")
+	flag.StringVar(&cfg.Proxy, "proxy", "", "Regional proxy egress entries: optional CODE=URL pairs separated by commas (http, https, socks5)")
+	flag.StringVar(&cfg.ProxyFile, "proxy-file", "", "File with one optional CODE=proxyURL per line for the regional sweep")
+	flag.StringVar(&cfg.LocaleSweep, "locale-sweep", "off", "Locale header sweep: off, trio or all. Locale headers do not change quest eligibility; IP egress does")
+	flag.DurationVar(&cfg.SweepPacing, "sweep-pacing", 3*time.Second, "Minimum delay between quest discovery requests; auto-raised when Discord returns HTTP 429")
+	flag.IntVar(&cfg.SweepAttempts, "sweep-attempts", 3, "Attempts per sweep target in the first pass; a recovery pass adds one more attempt for failed targets")
 	flag.BoolVar(&cfg.EnablePortal, "portal", true, "Enable local captcha web portal for headless environments")
 	flag.IntVar(&cfg.PortalPort, "portal-port", 8080, "Port for local captcha web portal")
 	flag.IntVar(&cfg.Concurrency, "concurrency", 5, "Maximum concurrent quests to process in parallel (default: 5)")

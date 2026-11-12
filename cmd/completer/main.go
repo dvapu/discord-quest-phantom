@@ -18,6 +18,7 @@ import (
 	"discord-quest-completer/pkg/captcha"
 	"discord-quest-completer/pkg/config"
 	"discord-quest-completer/pkg/i18n"
+	"discord-quest-completer/pkg/inventory"
 	"discord-quest-completer/pkg/scanner"
 	"discord-quest-completer/pkg/spoofer"
 	"discord-quest-completer/pkg/updater"
@@ -29,6 +30,12 @@ var Version = "1.1.3"
 // lastInventorySignature remembers the previous scan fingerprint so daemon
 // mode can stay silent while nothing changes.
 var lastInventorySignature string
+
+// sweepTargets is the regional egress plan built once from the CLI flags.
+var sweepTargets []api.RegionTarget
+
+// snapshotSaveWarned keeps a broken cache file from spamming the console.
+var snapshotSaveWarned bool
 
 // exitCode lets deferred cleanup report failure after the window is kept open.
 var exitCode int
@@ -116,6 +123,32 @@ func main() {
 	// 2. Initialize API Client
 	apiClient := api.NewClient(cfg.Token, buildNumber)
 
+	// 2.5. Build regional sweep targets from CLI flags. The local egress is always
+	// included; regional proxies add real cross-region quest coverage because
+	// Discord decides eligibility from the request IP, not locale headers.
+	targets, sweepWarnings, targetErr := api.BuildTargets(cfg.Region, cfg.Proxy, cfg.ProxyFile, cfg.LocaleSweep)
+	if targetErr != nil {
+		fmt.Fprintf(os.Stderr, "[-] Invalid quest sweep configuration: %v\n", targetErr)
+		exitCode = 1
+		return
+	}
+	sweepTargets = targets
+	targetCodes := make([]string, 0, len(targets))
+	localeTargets := 0
+	for _, target := range targets {
+		targetCodes = append(targetCodes, target.Code)
+		if target.Kind == api.TargetLocale {
+			localeTargets++
+		}
+	}
+	fmt.Printf("[+] Sweep targets (%d): %s\n", len(targets), strings.Join(targetCodes, ", "))
+	for _, warning := range sweepWarnings {
+		fmt.Printf("[i] %s\n", warning)
+	}
+	if localeTargets > 0 {
+		fmt.Printf(i18n.M().LocaleSweepNote, localeTargets)
+	}
+
 	// 3. Authenticate & Retrieve Account Identity
 	fmt.Println(i18n.M().Authenticating)
 	user, err := apiClient.ValidateToken(ctx)
@@ -169,45 +202,249 @@ func main() {
 	}
 }
 
-func fetchQuests(ctx context.Context, cfg *config.Config, apiClient *api.Client) ([]api.Quest, error) {
-	if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
-		var regions []string
-		for _, r := range strings.Split(cfg.Region, ",") {
-			rTrim := strings.TrimSpace(r)
-			if rTrim != "" {
-				regions = append(regions, rTrim)
+// discoverQuests runs the regional sweep and merges the last known good
+// inventory when the pass was incomplete. It never silently returns an empty
+// list while a recent snapshot still holds active quests.
+func discoverQuests(ctx context.Context, cfg *config.Config, apiClient *api.Client, user *api.UserMe) (*api.SweepResult, int, error) {
+	opts := api.DefaultSweepOptions()
+	if cfg.SweepPacing > 0 {
+		opts.MinInterval = cfg.SweepPacing
+	}
+	if cfg.SweepAttempts > 0 {
+		opts.MaxAttempts = cfg.SweepAttempts
+	}
+
+	userID := ""
+	if user != nil {
+		userID = user.ID
+	}
+	now := time.Now().UTC()
+
+	result, sweepErr := apiClient.SweepQuests(ctx, sweepTargets, opts)
+	if result == nil {
+		result = &api.SweepResult{}
+	}
+
+	// A complete sweep is authoritative: never resurrect snapshot quests that
+	// Discord itself no longer returns for a healthy account.
+	if sweepErr == nil && result.Failed == 0 {
+		saveSnapshot(cfg, userID, result)
+		return result, 0, nil
+	}
+
+	// Incomplete sweep: salvage active quests the failed targets would have
+	// returned, otherwise a single 429 silently hides a whole region for a pass.
+	restored := 0
+	snapshot, loadErr := inventory.Load(inventory.Path(cfg.CacheDir))
+	if loadErr == nil && snapshot != nil {
+		merged := inventory.Merge(result.Quests, snapshot, userID, now, 15*time.Minute)
+		if len(merged) > len(result.Quests) {
+			restored = len(merged) - len(result.Quests)
+			result.Quests = merged
+			if result.AccessSuspendedUntil == nil {
+				result.AccessSuspendedUntil = snapshot.AccessSuspendedUntil
+			}
+			if result.EnrollmentBlockedUntil == nil {
+				result.EnrollmentBlockedUntil = snapshot.EnrollmentBlockedUntil
 			}
 		}
-		return apiClient.FetchQuestsMultiRegion(ctx, regions)
 	}
-	return apiClient.FetchQuests(ctx)
+
+	if sweepErr != nil && len(result.Quests) == 0 {
+		return result, 0, sweepErr
+	}
+	return result, restored, nil
+}
+
+// saveSnapshot persists a good inventory so a later transient outage cannot make
+// quests vanish from the next pass.
+func saveSnapshot(cfg *config.Config, userID string, result *api.SweepResult) {
+	if result == nil || result.Failed > 0 {
+		return
+	}
+	snapshot := inventory.FromSweep(userID, result, time.Now().UTC())
+	if err := inventory.Save(inventory.Path(cfg.CacheDir), snapshot); err != nil && !snapshotSaveWarned {
+		snapshotSaveWarned = true
+		fmt.Fprintf(os.Stderr, "[!] Could not save quest snapshot (discovery fallback disabled): %v\n", err)
+	}
+}
+
+// refreshQuestsByRegion re-reads the inventory through every egress region used
+// by the pass, so a final summary does not mistake proxy-only quests for missing.
+func refreshQuestsByRegion(ctx context.Context, client *api.Client, analyzed []scanner.AnalyzedQuest) []api.Quest {
+	regionOrder := make([]string, 0, 4)
+	regionQuests := make(map[string][]scanner.AnalyzedQuest)
+	seenRegion := make(map[string]bool, 4)
+	for _, quest := range analyzed {
+		region := quest.Region
+		if region == "" {
+			region = "LOCAL"
+		}
+		if !seenRegion[region] {
+			seenRegion[region] = true
+			regionOrder = append(regionOrder, region)
+		}
+		regionQuests[region] = append(regionQuests[region], quest)
+	}
+	if len(regionOrder) == 0 {
+		regionOrder = append(regionOrder, "LOCAL")
+	}
+
+	merged := make([]api.Quest, 0, len(analyzed))
+	seenQuest := make(map[string]bool, len(analyzed))
+	for _, region := range regionOrder {
+		quests, fetchErr := client.FetchQuests(api.WithRegionInfo(ctx, regionInfoFor(region)))
+		if fetchErr != nil {
+			// Keep the pre-refresh view for this region instead of dropping it.
+			for _, quest := range regionQuests[region] {
+				if seenQuest[quest.ID] {
+					continue
+				}
+				seenQuest[quest.ID] = true
+				copyOfQuest := quest.Quest
+				if copyOfQuest.DiscoveredRegion == "" {
+					copyOfQuest.DiscoveredRegion = region
+				}
+				merged = append(merged, copyOfQuest)
+			}
+			continue
+		}
+		for _, quest := range quests {
+			if quest.ID == "" || seenQuest[quest.ID] {
+				continue
+			}
+			seenQuest[quest.ID] = true
+			if quest.DiscoveredRegion == "" {
+				quest.DiscoveredRegion = region
+			}
+			merged = append(merged, quest)
+		}
+	}
+	return merged
+}
+
+// regionInfoFor returns the routing metadata for a quest's discovery region.
+func regionInfoFor(region string) api.RegionInfo {
+	for _, target := range sweepTargets {
+		if strings.EqualFold(target.Code, region) {
+			return target.Info()
+		}
+	}
+	return api.RegionInfo{Code: region, Locale: "en-US", Timezone: "America/New_York"}
+}
+
+// printSweepReport prints per-target sweep results so a failed region can never
+// be silently swallowed again.
+func printSweepReport(result *api.SweepResult, restored int) {
+	if result == nil {
+		return
+	}
+	if len(result.Targets) > 0 {
+		fmt.Printf(i18n.M().SweepSummary,
+			result.Succeeded, len(result.Targets), len(result.Quests), result.ExcludedCount(),
+			result.Requests, result.Duration.Round(100*time.Millisecond))
+	}
+	for _, target := range result.Targets {
+		state := "OK "
+		if !target.Ok {
+			state = "ERR"
+		}
+		proxy := target.Proxy
+		if proxy == "" {
+			proxy = "direct"
+		}
+		if target.Ok {
+			fmt.Printf("    [%s] %-8s locale=%-5s %-28s quests=%-3d excluded=%-3d %dms\n",
+				state, target.Code, target.Locale, proxy, target.Quests, target.Excluded, target.Latency.Milliseconds())
+			continue
+		}
+		fmt.Printf("    [%s] %-8s locale=%-5s %-28s %s (attempts=%d)\n",
+			state, target.Code, target.Locale, proxy, target.Err, target.Attempts)
+	}
+	if failed := result.FailedTargets(); len(failed) > 0 {
+		fmt.Printf(i18n.M().SweepTargetsFailed, len(failed), strings.Join(failed, ", "))
+	}
+	if restored > 0 {
+		fmt.Printf(i18n.M().CacheFallbackNote, restored)
+	}
+	if excluded := result.ExcludedCount(); excluded > 0 {
+		fmt.Printf(i18n.M().ExcludedHint, excluded)
+	}
+}
+
+// mergeRefreshed keeps proxy-discovered quests that a direct refresh cannot see.
+func mergeRefreshed(existing []scanner.AnalyzedQuest, refreshed []api.Quest) []api.Quest {
+	merged := make([]api.Quest, 0, len(refreshed)+len(existing))
+	seen := make(map[string]bool, len(refreshed))
+	for _, quest := range refreshed {
+		seen[quest.ID] = true
+		merged = append(merged, quest)
+	}
+	for _, analyzed := range existing {
+		if seen[analyzed.ID] {
+			continue
+		}
+		merged = append(merged, analyzed.Quest)
+	}
+	return merged
+}
+
+// countSkippedEnrollments counts quests that cannot safely be enrolled this
+// pass: snapshot-restored quests and quests whose regional proxy disappeared.
+func countSkippedEnrollments(quests []scanner.AnalyzedQuest, client *api.Client) int {
+	skipped := 0
+	for _, quest := range quests {
+		if quest.State != scanner.StateAvailable || quest.IsExpired {
+			continue
+		}
+		if quest.Quest.FromCache {
+			skipped++
+			continue
+		}
+		if quest.Quest.RegionProxied && quest.Region != "" && !client.HasRegionProxy(quest.Region) {
+			skipped++
+		}
+	}
+	return skipped
 }
 
 func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client, user *api.UserMe) {
 	// In daemon mode, suppress the verbose scan/table output when the inventory
-	// is byte-identical to the previous cycle. This prevents an idle 24/7
-	// instance (or one whose quests all expired) from scrolling endlessly.
+	// is byte-identical to the previous cycle.
 	quiet := cfg.Daemon && !cfg.Debug
 
-	// 4. Discover Quests (with Multi-Region / Locale Sweep)
 	if !quiet {
-		if cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "" {
-			fmt.Printf(i18n.M().RegionScanStart, cfg.Region)
-		} else {
-			fmt.Println(i18n.M().DiscoveringQuests)
-		}
+		fmt.Printf(i18n.M().SweepStart, len(sweepTargets))
 	}
 
-	rawQuests, err := fetchQuests(ctx, cfg, apiClient)
+	result, restored, err := discoverQuests(ctx, cfg, apiClient, user)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, i18n.M().FailedRetrieveQuests, err)
 		return
 	}
-	if !quiet && (cfg.Region == "all" || strings.Contains(cfg.Region, ",") || cfg.Region != "") {
-		fmt.Printf(i18n.M().RegionScanDone, len(rawQuests))
+	if result == nil {
+		fmt.Fprintf(os.Stderr, i18n.M().FailedRetrieveQuests, errors.New("empty discovery result"))
+		return
+	}
+	if !quiet || restored > 0 || result.Failed > 0 {
+		printSweepReport(result, restored)
 	}
 
-	analyzedQuests := scanner.AnalyzeAll(rawQuests)
+	// Account-level gates come straight from Discord's payload. A suspended
+	// account must not send any quest traffic, or the penalty escalates.
+	access := result.AccessState(time.Now().UTC())
+	if access.AccessSuspended {
+		fmt.Printf(i18n.M().AccessSuspended, access.AccessSuspendedUntil.Format("2006-01-02 15:04 MST"))
+		analyzed := scanner.AnalyzeAll(result.Quests)
+		fmt.Print(scanner.FormatQuestTable(analyzed, cfg.Debug))
+		printSessionSummary(user, analyzed)
+		return
+	}
+	if access.EnrollmentBlocked {
+		fmt.Printf(i18n.M().EnrollBlocked, access.EnrollmentBlockedUntil.Format("2006-01-02 15:04 MST"))
+	}
+
+	analyzedQuests := scanner.AnalyzeAll(result.Quests)
 	sig := scanner.TableSignature(analyzedQuests)
 	inventoryChanged := sig != lastInventorySignature
 	lastInventorySignature = sig
@@ -216,23 +453,22 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client,
 		fmt.Print(scanner.FormatQuestTable(analyzedQuests, cfg.Debug))
 	}
 
-	// 5. Auto-Enrollment (if enabled and not dry-run)
-	if cfg.AutoAccept && !cfg.DryRun {
+	// Auto-Enrollment (only when the account is allowed to enroll).
+	if cfg.AutoAccept && !cfg.DryRun && !access.EnrollmentBlocked {
 		if !quiet || hasEnrollable(analyzedQuests) {
 			fmt.Println(i18n.M().AutoEnrollHeader)
 		}
-		enrolled, err := scanner.AutoEnrollPending(ctx, apiClient, analyzedQuests, cfg.EnablePortal, cfg.PortalPort, quiet)
-		if err != nil {
-			fmt.Printf(i18n.M().AutoEnrollError, err)
-		} else if enrolled > 0 {
-			fmt.Printf(i18n.M().AutoEnrollSuccess, enrolled)
-			fmt.Println(i18n.M().AutoEnrollRefresh)
-			rawQuests, err = fetchQuests(ctx, cfg, apiClient)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, i18n.M().FailedRefreshQuests, err)
-				return
-			}
-			analyzedQuests = scanner.AnalyzeAll(rawQuests)
+		if skipped := countSkippedEnrollments(analyzedQuests, apiClient); skipped > 0 {
+			fmt.Printf(i18n.M().CacheEnrollSkip, skipped)
+		}
+		enrolledIDs, enrollErr := scanner.AutoEnrollPending(ctx, apiClient, analyzedQuests, cfg.EnablePortal, cfg.PortalPort, quiet)
+		if enrollErr != nil {
+			fmt.Printf(i18n.M().AutoEnrollError, enrollErr)
+		}
+		if updated := scanner.ApplyEnrolledState(analyzedQuests, enrolledIDs); updated > 0 {
+			fmt.Printf(i18n.M().AutoEnrollSuccess, updated)
+			// The freshly enrolled quests are known-good locally, so there is no
+			// need to spend another rate-limited refresh to start working on them.
 			lastInventorySignature = scanner.TableSignature(analyzedQuests)
 			fmt.Print(scanner.FormatQuestTable(analyzedQuests, cfg.Debug))
 		} else if !quiet {
@@ -240,41 +476,44 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client,
 		}
 	}
 
-	// 6. Dry-run Mode
+	// Dry-run Mode
 	if cfg.DryRun {
 		fmt.Println(i18n.M().DryRunNotice)
 		printSessionSummary(user, analyzedQuests)
 		return
 	}
 
-	// 7. Execution Engine Branching
+	// Execution Engine Branching
 	if cfg.UseSpoofer {
 		fmt.Printf("\n[*] %s\n", i18n.M().ModeSpoofer)
-		spooferEngine, err := spoofer.NewSpoofer(cfg.CacheDir)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "[-] Failed initializing spoofer engine: %v\n", err)
+		spooferEngine, spooferErr := spoofer.NewSpoofer(cfg.CacheDir)
+		if spooferErr != nil {
+			fmt.Fprintf(os.Stderr, "[-] Failed initializing spoofer engine: %v\n", spooferErr)
 			return
 		}
-		if err := runSpooferLoop(ctx, cfg, apiClient, spooferEngine, analyzedQuests); err != nil {
-			if err != context.Canceled && ctx.Err() == nil {
-				fmt.Fprintf(os.Stderr, "[-] Spoofer error: %v\n", err)
+		if runErr := runSpooferLoop(ctx, cfg, apiClient, spooferEngine, analyzedQuests); runErr != nil {
+			if runErr != context.Canceled && ctx.Err() == nil {
+				fmt.Fprintf(os.Stderr, "[-] Spoofer error: %v\n", runErr)
 			}
 		}
 	} else {
 		fmt.Printf("\n[*] %s\n", i18n.M().ModeAPIRunner)
-		if err := runAPIRunnerLoop(ctx, cfg, apiClient, analyzedQuests); err != nil {
-			if err != context.Canceled && ctx.Err() == nil {
-				fmt.Fprintf(os.Stderr, "[-] API Runner error: %v\n", err)
+		if runErr := runAPIRunnerLoop(ctx, cfg, apiClient, analyzedQuests); runErr != nil {
+			if runErr != context.Canceled && ctx.Err() == nil {
+				fmt.Fprintf(os.Stderr, "[-] API Runner error: %v\n", runErr)
 			}
 		}
 	}
 
 	fmt.Println(i18n.M().AllTasksFinished)
-	// Refresh final quest inventory & user identity for accurate session summary
-	if refreshedQuests, err := fetchQuests(ctx, cfg, apiClient); err == nil {
-		analyzedQuests = scanner.AnalyzeAll(refreshedQuests)
+	// A final refresh is cosmetic; skip it in daemon mode so a long-running
+	// service does not spend extra rate-limited quest requests every cycle.
+	if !cfg.Daemon {
+		if refreshedQuests := refreshQuestsByRegion(ctx, apiClient, analyzedQuests); len(refreshedQuests) > 0 {
+			analyzedQuests = scanner.AnalyzeAll(refreshedQuests)
+		}
 	}
-	if refreshedUser, err := apiClient.ValidateToken(ctx); err == nil {
+	if refreshedUser, userErr := apiClient.ValidateToken(ctx); userErr == nil {
 		user = refreshedUser
 	}
 	printSessionSummary(user, analyzedQuests)
@@ -496,7 +735,8 @@ func runAPIRunnerLoop(ctx context.Context, cfg *config.Config, client *api.Clien
 				case <-time.After(laneDelay):
 				}
 
-				processOneQuest(ctx, client, quest, idx, len(bucket))
+				questCtx := api.WithRegionInfo(ctx, regionInfoFor(quest.Region))
+				processOneQuest(questCtx, client, quest, idx, len(bucket))
 			}(i+1, q)
 		}
 
@@ -663,7 +903,6 @@ func errorBackoff(consecutive int) time.Duration {
 	}
 	return d
 }
-
 
 func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest) error {
 	secondsNeeded := float64(q.TargetSec)
@@ -875,9 +1114,9 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 		}
 
 		type activeGame struct {
-			quest  scanner.AnalyzedQuest
-			proc   spoofer.GameProcess
-			done   bool
+			quest   scanner.AnalyzedQuest
+			proc    spoofer.GameProcess
+			done    bool
 			lastSec float64
 		}
 
@@ -928,21 +1167,56 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 			case <-time.After(cfg.PollInterval):
 			}
 
-			rawQuests, err := apiClient.FetchQuests(ctx)
-			if err != nil {
-				if errors.Is(err, api.ErrQuestExpired) {
+			// A proxy-discovered quest does not exist in the direct inventory, so
+			// poll every egress region used by this batch and union the results.
+			fetchedRegions := make(map[string]bool, len(activeGames))
+			regionFetchFailed := make(map[string]bool, len(activeGames))
+			rawQuests := make([]api.Quest, 0, len(activeGames))
+			seenQuest := make(map[string]bool, len(activeGames))
+			var regionFetchErr error
+			for _, ag := range activeGames {
+				if ag.done {
+					continue
+				}
+				region := ag.quest.Region
+				if region == "" {
+					region = "LOCAL"
+				}
+				if fetchedRegions[region] {
+					continue
+				}
+				fetchedRegions[region] = true
+				regionQuests, fetchErr := apiClient.FetchQuests(api.WithRegionInfo(ctx, regionInfoFor(region)))
+				if fetchErr != nil {
+					regionFetchFailed[region] = true
+					regionFetchErr = fetchErr
+					continue
+				}
+				for _, quest := range regionQuests {
+					if quest.ID == "" || seenQuest[quest.ID] {
+						continue
+					}
+					seenQuest[quest.ID] = true
+					if quest.DiscoveredRegion == "" {
+						quest.DiscoveredRegion = region
+					}
+					rawQuests = append(rawQuests, quest)
+				}
+			}
+			if len(rawQuests) == 0 && regionFetchErr != nil {
+				if errors.Is(regionFetchErr, api.ErrQuestExpired) {
 					cleanup()
-					return err
+					return regionFetchErr
 				}
 				// Never spin on a broken connection without a bound.
 				consecutiveFetchErrors++
 				if consecutiveFetchErrors == 1 || consecutiveFetchErrors%10 == 0 {
-					fmt.Printf(i18n.M().SpooferFetchWarning, err)
+					fmt.Printf(i18n.M().SpooferFetchWarning, regionFetchErr)
 				}
 				if consecutiveFetchErrors >= maxConsecutiveErrors {
-					fmt.Printf(i18n.M().ProgressErrorAbort, "spoofer", consecutiveFetchErrors, err)
+					fmt.Printf(i18n.M().ProgressErrorAbort, "spoofer", consecutiveFetchErrors, regionFetchErr)
 					cleanup()
-					return err
+					return regionFetchErr
 				}
 				continue
 			}
@@ -963,6 +1237,19 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 					}
 				}
 				if curQ == nil {
+					region := ag.quest.Region
+					if region == "" {
+						region = "LOCAL"
+					}
+					if regionFetchFailed[region] {
+						// We could not read that region's inventory, so the quest is
+						// not necessarily gone. Keep the game process alive.
+						if noProgressPolls == 0 {
+							fmt.Printf("    [!] Region [%s] inventory temporarily unavailable; keeping quest '%s' (%s) alive.\n", region, ag.quest.Title, ag.quest.ID)
+						}
+						allBatchDone = false
+						continue
+					}
 					// Quest vanished from the inventory (ended / removed).
 					fmt.Printf(i18n.M().QuestExpiredSkip, ag.quest.Title, ag.quest.ID)
 					_ = ag.proc.Stop()

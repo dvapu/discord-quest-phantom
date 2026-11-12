@@ -34,10 +34,10 @@
                                                     │
                 ┌───────────────────────────────────┼───────────────────────────────────┐
                 ▼                                   ▼                                   ▼
-    [1. MULTI-REGION SWEEP]             [2. PARALLEL RUNNER (DEFAULT)]        [3. BADGE & CAPTCHA PORTAL]
-  - Probes US, JP & VN locales       - Concurrently runs 2-5 quests       - Auto LAN IP & port detection
-  - Spoofs X-Super-Properties        - Staggered API request jitter       - 🎖️ Instant HypeSquad Badge Claim
-  - Reveals hidden avatar frames     - 5 games in 15 mins (not 75 mins!)  - Zero SSH/headless lockouts
+    [1. REGIONAL EGRESS SWEEP]          [2. PARALLEL RUNNER (DEFAULT)]        [3. BADGE & CAPTCHA PORTAL]
+  - Local IP first, then proxies     - Concurrently runs 2-5 quests       - Auto LAN IP & port detection
+  - Unions quests across regions     - Staggered API request jitter       - 🎖️ Instant HypeSquad Badge Claim
+  - Reports every failed region      - 5 games in 15 mins (not 75 mins!)  - Zero SSH/headless lockouts
                 │                                   │                                   │
                 └───────────────────────────────────┴───────────────────────────────────┘
                                                     │
@@ -70,9 +70,12 @@
    - Progress loops now stop after 5 consecutive errors or 3 minutes without accepted progress, using bounded backoff.
    - The quest table collapses expired campaigns into a single summary line (use `-debug` to see them all).
    - Daemon mode no longer reprints an identical inventory every poll cycle.
-3. **🌍 Golden Trio Multi-Region Auto-Scan (`--region all`)**:
-   - Discord region-locks exclusive avatar decorations and quests by evaluating `client_locale` / `system_locale` (why changing iPhone locale unlocks hidden quests).
-   - Phantom queries the Golden Trio (`en-US`, `ja-JP`, `vi-VN`) in parallel (~2.5s) to reveal 100% of global quests, avatar frames, and rewards directly inside your Discord app without proxy/VPN!
+3. **🌍 Regional Egress Sweep + never-miss discovery (`-region`, `-proxy`, `-proxy-file`)** — *corrected mechanism*:
+   - Quest eligibility is decided by the **request IP** (the country Discord sees), not by `client_locale` / `system_locale`. We measured this on a live account: 22 different locale headers returned the exact same 61-quest set, while VPN users visibly gain other countries' quests. Locale headers only localise text.
+   - Phantom sweeps the **local egress first**, then every regional proxy you configure, unions the responses by quest ID, and routes each quest's enroll/heartbeat/video calls back through the proxy that discovered it (its sealed traffic metadata belongs to that fetch).
+   - Every target is reported as `OK`/`ERR` with quest/excluded counts and latency. Failed regions get a recovery retry, and anything still failing is printed instead of being silently skipped.
+   - Requests are serialized with `Retry-After`-aware pacing: Discord allows only a 2–3 request burst on `/quests/@me` before answering `429`. A last-known-good snapshot bridges transient outages, and `quest_access_suspended_until` / `quest_enrollment_blocked_until` stop the tool before it earns a penalty.
+   - Legacy `-locale-sweep trio|all` remains available for experiments, off by default, and explicitly does **not** change eligibility.
 4. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
    - Complete 2–5 quests concurrently in parallel lanes with staggered request jitter.
    - Finish 5 games in **15 minutes** instead of 75 minutes!
@@ -169,6 +172,7 @@ Then enable and start the service:
 ```bash
 systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
+> Running regional proxies? Append `-proxy-file /opt/discord-quest-phantom/proxies.txt` to `ExecStart` and place the proxy list next to the binary. Without proxies the daemon simply sweeps the server's own egress.
 
 ---
 
@@ -178,7 +182,12 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 |---|---|---|
 | `-max-badge` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
 | `-hypesquad` | `""` | HypeSquad House badge: `bravery` (1), `brilliance` (2), `balance` (3), or `leave` (0) |
-| `-region` | `all` | Regional probe scope: `all` (Golden Trio: US+JP+VN), `us`, `jp`, `vn` |
+| `-region` | `all` | Sweep scope: `all` (local egress + every configured proxy), `direct`, `full` (also every locale), a comma list of proxy/country codes (`us,br,jp`) or Discord locales (`ja`) |
+| `-proxy` | `""` | Regional egress entries: `CODE=URL` pairs separated by commas (`us=socks5://…,br=http://…`) |
+| `-proxy-file` | `""` | File with one `CODE=proxyURL` per line (`#` comments allowed) |
+| `-locale-sweep` | `off` | Locale header sweep for experiments: `off`, `trio`, `all` (does not change quest eligibility) |
+| `-sweep-pacing` | `3s` | Minimum delay between quest discovery requests; auto-raised when Discord answers HTTP 429 |
+| `-sweep-attempts` | `3` | Attempts per sweep target before it is reported as failed |
 | `-concurrency` | `5` | Maximum concurrent quests running in parallel (1–5) |
 | `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |
 | `-poll` | `60s` | Polling interval between quest checks when running in daemon mode (e.g. `15m`, `30m`) |
@@ -193,6 +202,45 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 
 ---
 
+## 🌐 Regional Quest Discovery: How It Really Works
+
+Discord decides **which quests an account is eligible for from the request IP** (the country it sees), while `X-Discord-Locale` / `Accept-Language` / `?locale=` only change the language of the response. Measured on a live account: probing 22 different locale headers returned the exact same quest set (61 quests, 98 excluded, identical IDs), while community reports consistently show that a VPN exit node in another country exposes that country's region-locked quests.
+
+Phantom therefore no longer claims that locale spoofing reveals region-locked quests. The reliable way to see every region is to **query Discord from every region you care about and union the answers**:
+
+```bash
+# proxies.txt — one regional exit per line. http, https, socks5 and socks5h are accepted.
+us=socks5://user:pass@us-exit.example:1080
+ca=http://ca-exit.example:8080
+br=socks5://br-exit.example:1080
+jp=http://jp-exit.example:8080
+
+# Sweep the local IP + every proxy, then run quests normally:
+discord-quest-phantom -region all -proxy-file proxies.txt
+
+# Or sweep one region while keeping the local view:
+discord-quest-phantom -proxy "us=socks5://127.0.0.1:1080" -region us
+```
+
+What the sweep guarantees:
+
+* **Local egress first.** The signed-in user's own view is always queried; a broken proxy can never hide quests.
+* **Union + per-quest region binding.** Quests are deduplicated by ID, then every enroll/heartbeat/video call for a quest goes through the proxy that discovered it, with matching `X-Discord-Locale` / `X-Discord-Timezone` headers.
+* **No silent misses.** Every target reports `OK`/`ERR`, quest count, excluded count and latency. Failed targets are retried once more after the healthy ones (rate-limit storms clear), and anything still failing is listed.
+* **Rate-limit aware pacing.** Discord allows only a small burst on `GET /quests/@me` (observed: 2–3 requests, then `429` with `retry_after` 5–10s). Requests are serialized with a configurable floor (3s default), raised automatically on `429`, and retried using `Retry-After`.
+* **Snapshot fallback.** A complete inventory is cached under the tool's cache directory. If a later pass is incomplete (a region returned 429/5xx), unexpired quests seen within the last 15 minutes are merged back instead of silently disappearing; restored quests are shown but not auto-enrolled because their sealed metadata is stale.
+* **Account gate awareness.** `quest_access_suspended_until` stops all quest traffic; `quest_enrollment_blocked_until` skips auto-enrollment. The tool prints the timestamp instead of retrying into a penalty.
+
+### Why are some quests still "excluded"?
+
+`GET /quests/@me` also returns `excluded_quests` — quests Discord withheld from this account (region, platform, eligibility, or a replaced campaign). They are IDs only, not full configs. Phantom prints the count and keeps scanning; a proxy in the right region is what moves a quest from `excluded_quests` into `quests` and makes it completable.
+
+### Legacy locale sweep
+
+`-locale-sweep trio` / `-locale-sweep all` still appends language-only probes and now uses canonical Discord locale identifiers (`ja` instead of `ja-JP`, `vi` instead of `vi-VN`). It is off by default: it costs extra rate-limited requests and does not change eligibility.
+
+---
+
 ## 🧯 Troubleshooting
 
 | Symptom | Cause | Fix |
@@ -202,6 +250,9 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | "you need to install Go and build it yourself" | Running the source tree instead of the release ZIP | Download `discord-quest-phantom-windows-amd64.zip` — it contains the prebuilt `.exe`. |
 | Endless expired-quest or error text scrolling | Old build retrying dead campaigns forever | Fixed in v1.1.2: terminal errors are detected and loops are bounded. |
 | `chcp`/garbled emoji in console | Legacy console codepage | The launcher switches to UTF-8 only while the app runs; Windows Terminal is recommended. |
+| Fewer quests than a friend in another country; region-locked quests never appear | Quest eligibility follows the request IP, not the locale. Locale sweeps cannot change that. | Add a proxy in the target region via `-proxy` / `-proxy-file`; Phantom unions the local and proxy views. |
+| `HTTP 429: rate limited` lines during the sweep | Discord allows only a tiny burst on `/quests/@me`. The engine paces and retries automatically. | Keep the default pacing or raise `-sweep-pacing`; sweep fewer proxies or poll less often. |
+| `QUEST ACCESS SUSPENDED` / enrollment blocked message | Discord temporarily locked quests on the account (automation enforcement). | Wait until the printed timestamp. The tool deliberately stops instead of retrying into a longer penalty. |
 
 ---
 
@@ -211,6 +262,9 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 * **Realistic X-Super-Properties**: Base64 encoded client fingerprint matching genuine Discord Desktop x64 builds (`os`, `browser`, `os_version`, `client_version`).
 * **Dynamic CDN Build Number**: Dynamically scrapes the active `client_build_number` from Discord CDN at startup. Never sends outdated build tags.
 * **Randomized Jitter**: Randomized interval delays between heartbeats and video progress events prevent pattern matching.
+* **Bounded, paced discovery**: `/quests/@me` requests are serialized, `Retry-After` aware and never fan out per proxy, so the account stays far away from rate-limit escalation.
+* **Quest gate awareness**: `quest_access_suspended_until` / `quest_enrollment_blocked_until` are read from the payload; the tool halts enrolling (or all quest traffic) until the gate expires instead of hammering a flagged account.
+* **Per-region consistency**: every quest action is sent through the proxy that discovered the quest, with aligned locale/timezone headers and the current `client_build_number`.
 
 ---
 
@@ -219,12 +273,14 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
 discord-quest-phantom/
 ├── cmd/
-│   └── completer/main.go       # Core Dual-Engine Orchestrator (Parallel Runner + Spoofer)
+│   ├── completer/main.go       # Core orchestrator (regional sweep + Parallel Runner + Spoofer)
+│   └── test_regions/main.go    # Regional/proxy discovery benchmark (passes, exclusives, JSON export)
 ├── pkg/
-│   ├── api/                    # REST Client, CDN Build Scraper, Video & Heartbeat
+│   ├── api/                    # REST client, regional sweep engine, CDN scraper, video & heartbeat
 │   ├── captcha/                # Local LAN Captcha Web Portal (auto port resolution)
 │   ├── config/                 # Token resolution & CLI parsing (interactive prompt)
 │   ├── i18n/                   # Zero-dependency bilingual translation catalogs (EN, VI)
+│   ├── inventory/              # Last-known-good quest snapshot (never-miss fallback)
 │   ├── scanner/                # Quest classification, lifecycle coordinator & expiry filter
 │   ├── spoofer/                # Win32 GUI message pump & Linux process emulation
 │   └── updater/                # GitHub release checker & update notification engine

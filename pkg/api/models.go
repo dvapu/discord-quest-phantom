@@ -151,32 +151,48 @@ func (u *UserMe) FormatBadges() string {
 
 // QuestResponse represents the top-level payload from GET /api/v9/quests/@me.
 type QuestResponse struct {
-	Quests                      []Quest `json:"quests"`
-	ExcludedQuests              []Quest `json:"excluded_quests"`
-	QuestEnrollmentBlockedUntil *string `json:"quest_enrollment_blocked_until"`
+	Quests                      []Quest         `json:"quests"`
+	ExcludedQuests              []ExcludedQuest `json:"excluded_quests"`
+	QuestEnrollmentBlockedUntil *string         `json:"quest_enrollment_blocked_until"`
+	QuestAccessSuspendedUntil   *string         `json:"quest_access_suspended_until"`
+}
+
+// ExcludedQuest is one quest Discord withheld from the account. It carries the
+// id only (plus an optional replacement campaign) because the full config is
+// never sent for ineligible quests.
+type ExcludedQuest struct {
+	ID               string  `json:"id"`
+	ReplacementID    *string `json:"replacement_id,omitempty"`
+	DiscoveredRegion string  `json:"-"`
 }
 
 // Quest represents a single Discord quest object.
 type Quest struct {
-	ID                    string       `json:"id"`
-	Config                QuestConfig  `json:"config"`
-	UserStatus            *UserStatus  `json:"user_status"`
-	TrafficMetadataRaw    *string      `json:"traffic_metadata_raw"`
-	TrafficMetadataSealed *string      `json:"traffic_metadata_sealed"`
-	DiscoveredRegion      string       `json:"discovered_region,omitempty"`
+	ID                    string      `json:"id"`
+	Config                QuestConfig `json:"config"`
+	UserStatus            *UserStatus `json:"user_status"`
+	TrafficMetadataRaw    *string     `json:"traffic_metadata_raw"`
+	TrafficMetadataSealed *string     `json:"traffic_metadata_sealed"`
+	TargetedContent       []int       `json:"targeted_content,omitempty"`
+	RegionProxied         bool        `json:"region_proxied,omitempty"`
+	FromCache             bool        `json:"-"`
+	DiscoveredRegion      string      `json:"discovered_region,omitempty"`
+	DiscoveredLocale      string      `json:"discovered_locale,omitempty"`
+	DiscoveredTimezone    string      `json:"discovered_timezone,omitempty"`
+	SeenIn                []string    `json:"-"`
 }
 
 // QuestConfig contains campaign metadata, timeframes, and task specifications.
 type QuestConfig struct {
-	ID           string           `json:"id"`
-	ConfigVersion int             `json:"config_version"`
-	StartsAt     string           `json:"starts_at"`
-	ExpiresAt    string           `json:"expires_at"`
-	Features     []int            `json:"features"`
-	Application  *ApplicationMeta `json:"application"`
-	Messages     QuestMessages    `json:"messages"`
-	TaskConfig   *TaskConfig      `json:"task_config"`
-	TaskConfigV2 *TaskConfig      `json:"task_config_v2"`
+	ID            string           `json:"id"`
+	ConfigVersion int              `json:"config_version"`
+	StartsAt      string           `json:"starts_at"`
+	ExpiresAt     string           `json:"expires_at"`
+	Features      []int            `json:"features"`
+	Application   *ApplicationMeta `json:"application"`
+	Messages      QuestMessages    `json:"messages"`
+	TaskConfig    *TaskConfig      `json:"task_config"`
+	TaskConfigV2  *TaskConfig      `json:"task_config_v2"`
 }
 
 // ApplicationMeta describes the primary game or Discord application associated with the quest.

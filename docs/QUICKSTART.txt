@@ -20,6 +20,16 @@ QUICK START GUIDE:
    - `-dry-run`: View all quests and application resolutions without enrolling or running games.
    - `-auto-accept=false`: Disable automatic enrollment in newly available quests.
    - `-poll=60s`: Set custom polling interval.
+   - `-proxy` / `-proxy-file`: Sweep quests from regional exit IPs, e.g.
+     `-proxy "us=socks5://127.0.0.1:1080"` or a file with one `CODE=URL` per line.
+     Quest eligibility follows the request IP, so this is how region-locked quests
+     become visible. The local IP is always swept first and results are unioned.
+   - `-region`: `all` (local + every configured proxy), `direct`, `full`, or a
+     comma list of proxy/country codes (`us,br,jp`).
+   - `-locale-sweep`: `off` (default), `trio`, `all` — language-only probes, kept
+     for experiments; they do not change quest eligibility.
+   - `-sweep-pacing=3s` / `-sweep-attempts=3`: Discovery pacing and retry budget.
+     Discord rate-limits `/quests/@me` aggressively; the engine adapts automatically.
 
 For more details and source code, visit:
 https://github.com/markterence/discord-quest-completer

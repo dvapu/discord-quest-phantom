@@ -16,172 +16,190 @@ const (
 
 // Messages contains all localizable user-facing strings across the application.
 type Messages struct {
-	BannerSubtitle        string
-	ModeAPIRunner         string
-	ModeSpoofer           string
-	PromptExitError       string
-	PromptExitKey         string
-	NoEligibleQuests      string
-	FoundEligibleQuests   string
-	RemainingQuestSec     string
-	ProcessingQuestHeader string
-	SkipUnsupportedTask   string
-	QuestErrorSkip        string
-	VideoStart            string
-	VideoProgressWarning  string
-	VideoProgress         string
-	VideoCompleted        string
-	HeartbeatStart        string
-	HeartbeatWarning      string
-	HeartbeatProgress     string
-	HeartbeatCompleted    string
-	ActivityStart         string
-	ActivityWarning       string
-	ActivityProgress      string
-	ActivityCompleted     string
-	SpooferNoEligible     string
-	SpooferHeader         string
-	SpooferNoExe          string
-	SpooferLaunchError    string
-	SpooferProcCreated    string
-	SpooferProgress       string
-	SpooferCompleted      string
-	TokenSaved            string
-	TokenError            string
-	AutoEnrollHeader      string
-	AutoEnrollError       string
-	AutoEnrollSuccess     string
-	AutoEnrollRefresh     string
-	AutoEnrollAllEnrolled string
-	TableInventory        string
-	TableBreakdown        string
-	TableHeaderID         string
-	TableHeaderTitle      string
-	TableHeaderCategory   string
-	TableHeaderTaskType   string
-	TableHeaderProgress   string
-	TableHeaderState      string
-	CatPurePC             string
-	CatCrossPlatform      string
-	CatVideoDesktop       string
-	CatVideoMobile        string
-	CatActivity           string
-	CatOther              string
-	ScrapingCDN           string
-	ActiveBuild           string
-	Authenticating        string
-	AuthFailed            string
-	AuthSuccess           string
-	DiscoveringQuests     string
-	FailedRetrieveQuests  string
-	FailedRefreshQuests   string
-	DryRunNotice          string
-	AllTasksFinished      string
-	RegionScanStart       string
-	RegionScanDone        string
-	CaptchaAlertTerminal  string
-	CaptchaPortalLink     string
-	CaptchaDeepLink       string
-	CaptchaWaiting        string
-	CaptchaSolvedSuccess  string
-	CaptchaTimeoutWarning string
-	CaptchaPortalDisabled string
-	UpdateAvailableBanner string
+	BannerSubtitle         string
+	ModeAPIRunner          string
+	ModeSpoofer            string
+	PromptExitError        string
+	PromptExitKey          string
+	NoEligibleQuests       string
+	FoundEligibleQuests    string
+	RemainingQuestSec      string
+	ProcessingQuestHeader  string
+	SkipUnsupportedTask    string
+	QuestErrorSkip         string
+	VideoStart             string
+	VideoProgressWarning   string
+	VideoProgress          string
+	VideoCompleted         string
+	HeartbeatStart         string
+	HeartbeatWarning       string
+	HeartbeatProgress      string
+	HeartbeatCompleted     string
+	ActivityStart          string
+	ActivityWarning        string
+	ActivityProgress       string
+	ActivityCompleted      string
+	SpooferNoEligible      string
+	SpooferHeader          string
+	SpooferNoExe           string
+	SpooferLaunchError     string
+	SpooferProcCreated     string
+	SpooferProgress        string
+	SpooferCompleted       string
+	TokenSaved             string
+	TokenError             string
+	AutoEnrollHeader       string
+	AutoEnrollError        string
+	AutoEnrollSuccess      string
+	AutoEnrollRefresh      string
+	AutoEnrollAllEnrolled  string
+	TableInventory         string
+	TableBreakdown         string
+	TableHeaderID          string
+	TableHeaderTitle       string
+	TableHeaderCategory    string
+	TableHeaderTaskType    string
+	TableHeaderProgress    string
+	TableHeaderState       string
+	CatPurePC              string
+	CatCrossPlatform       string
+	CatVideoDesktop        string
+	CatVideoMobile         string
+	CatActivity            string
+	CatOther               string
+	ScrapingCDN            string
+	ActiveBuild            string
+	Authenticating         string
+	AuthFailed             string
+	AuthSuccess            string
+	DiscoveringQuests      string
+	FailedRetrieveQuests   string
+	FailedRefreshQuests    string
+	DryRunNotice           string
+	AllTasksFinished       string
+	RegionScanStart        string
+	RegionScanDone         string
+	SweepStart             string
+	SweepSummary           string
+	SweepTargetsFailed     string
+	ExcludedHint           string
+	CacheFallbackNote      string
+	LocaleSweepNote        string
+	AccessSuspended        string
+	EnrollBlocked          string
+	CacheEnrollSkip        string
+	CaptchaAlertTerminal   string
+	CaptchaPortalLink      string
+	CaptchaDeepLink        string
+	CaptchaWaiting         string
+	CaptchaSolvedSuccess   string
+	CaptchaTimeoutWarning  string
+	CaptchaPortalDisabled  string
+	UpdateAvailableBanner  string
 	UpdateAvailableDetails string
-	ConcurrentHeader      string
-	AllQuestsDone         string
-	QuestExpiredSkip      string
-	ProgressStallAbort    string
-	ProgressErrorAbort    string
-	TableExpiredNotice    string
-	DaemonIdleNotice      string
-	ExpiredQuestsHidden   string
-	SpooferFetchWarning   string
-	AuthFailedHint        string
-	BadgeProfileHeader    string
-	BadgeNone             string
-	BadgeTipPrompt        string
-	BadgeJoiningHypeSquad string
-	BadgeLeavingHypeSquad string
-	BadgeClaimSuccess     string
-	BadgeAlreadyOwned     string
-	BadgeLeaveSuccess     string
-	BadgeError            string
-	BadgeAutoEnrolling    string
-	BadgeDryRunJoin       string
-	BadgeDryRunLeave      string
-	BadgeDryRunAutoEnroll string
-	SummaryHeader         string
-	SummaryBadges         string
-	SummaryQuestsDone     string
-	SummaryClaimReminder  string
+	ConcurrentHeader       string
+	AllQuestsDone          string
+	QuestExpiredSkip       string
+	ProgressStallAbort     string
+	ProgressErrorAbort     string
+	TableExpiredNotice     string
+	DaemonIdleNotice       string
+	ExpiredQuestsHidden    string
+	SpooferFetchWarning    string
+	AuthFailedHint         string
+	BadgeProfileHeader     string
+	BadgeNone              string
+	BadgeTipPrompt         string
+	BadgeJoiningHypeSquad  string
+	BadgeLeavingHypeSquad  string
+	BadgeClaimSuccess      string
+	BadgeAlreadyOwned      string
+	BadgeLeaveSuccess      string
+	BadgeError             string
+	BadgeAutoEnrolling     string
+	BadgeDryRunJoin        string
+	BadgeDryRunLeave       string
+	BadgeDryRunAutoEnroll  string
+	SummaryHeader          string
+	SummaryBadges          string
+	SummaryQuestsDone      string
+	SummaryClaimReminder   string
 }
 
 var catalogs = map[Language]Messages{
 	LangEN: {
-		BannerSubtitle:        "Autonomous API Runner & OS Process Spoofer for Windows & Linux",
-		ModeAPIRunner:         "Autonomous API Runner (Default, Discord-Independent)",
-		ModeSpoofer:           "OS Process Spoofer (-spoofer, Emulates Game Process)",
-		PromptExitError:       "\n[!] An error occurred.",
-		PromptExitKey:         "\n[?] Press Enter to exit...",
-		NoEligibleQuests:      "[+] No quests need completion at this time (All active quests are either completed or claimed)!",
-		FoundEligibleQuests:   "\n[+] Found %d quest(s) to complete:\n",
-		RemainingQuestSec:     "Remaining: ~%.0fs / %ds",
-		ProcessingQuestHeader: ">>> Processing [%d/%d]: %s (%s) <<<",
-		SkipUnsupportedTask:   "[!] Skipping quest %s: Task type %s is not supported for automation.\n",
-		QuestErrorSkip:        "[-] Error processing %s: %v. Moving to next quest...\n",
-		VideoStart:            "[🎬 Video] Starting video playback: %s (Progress: %.0f/%.0fs)\n",
-		VideoProgressWarning:  "    [-] Video progress warning: %v\n",
-		VideoProgress:         "    [🎬] Progress: %.0f/%.0fs (%.0f%%)\n",
-		VideoCompleted:        "[✅] Video quest completed successfully: %s\n",
-		HeartbeatStart:        "[🎮 Game Heartbeat] Starting play simulation: %s (~%.0f min remaining)\n",
-		HeartbeatWarning:      "    [-] Heartbeat warning: %v\n",
-		HeartbeatProgress:     "    [🎮] [%s] Progress: %.0f/%.0fs (%.1f%%)\n",
-		HeartbeatCompleted:    "[✅] Play Quest completed: %s\n",
-		ActivityStart:         "[🕹️ Activity] Starting Activity: %s\n",
-		ActivityWarning:       "    [-] Activity heartbeat warning: %v\n",
-		ActivityProgress:      "    [🕹️] Activity Progress: %.0f/%.0fs\n",
-		ActivityCompleted:     "[✅] Activity completed: %s\n",
-		SpooferNoEligible:     "[+] No eligible PLAY_ON_DESKTOP quests found for Spoofer mode.",
-		SpooferHeader:         "\n>>> Spoofer Quest [%d/%d]: %s <<<\n",
-		SpooferNoExe:          "[-] Executable not found for AppID %s: %v\n",
-		SpooferLaunchError:    "[-] Error launching dummy game: %v\n",
-		SpooferProcCreated:    "[+] Created dummy game process: %s (PID: %d)\n",
-		SpooferProgress:       "[★] Progress: %.0fs / %ds (State: %s)\n",
-		SpooferCompleted:      "[✔] Spoofer Quest completed: %s!\n",
-		TokenSaved:            "[+] Discord token successfully saved to %s!\n\n",
-		TokenError:            "no valid Discord token found. Please provide via .token file or -token flag",
-		AutoEnrollHeader:      "\n[*] Checking for un-enrolled active quests...",
-		AutoEnrollError:       "[-] Auto-enroll encountered error: %v\n",
-		AutoEnrollSuccess:     "[+] Successfully auto-enrolled in %d new quest(s)!\n",
-		AutoEnrollRefresh:     "[*] Refreshing quest inventory after enrollment...",
-		AutoEnrollAllEnrolled: "[+] All eligible active quests are already enrolled.",
-		TableInventory:        "\n=== Discord Quest Inventory (Total: %d) ===\n",
-		TableBreakdown:        "Status Breakdown: Claimed: %d | Completed: %d | Enrolled: %d | Available: %d | Expired: %d\n",
-		TableHeaderID:         "Quest ID",
-		TableHeaderTitle:      "Title / Game",
-		TableHeaderCategory:   "Category",
-		TableHeaderTaskType:   "Task Type",
-		TableHeaderProgress:   "Progress",
-		TableHeaderState:      "State",
-		CatPurePC:             "🖥️ Pure PC (Game)",
-		CatCrossPlatform:      "🎮 Cross-Platform",
-		CatVideoDesktop:       "📺 Video (Desktop)",
-		CatVideoMobile:        "📱 Video (Mobile)",
-		CatActivity:           "🏆 Activity/Mission",
-		CatOther:              "❓ Other",
-		ScrapingCDN:           "\n[*] Scraping latest Discord client_build_number from CDN...",
-		ActiveBuild:           "[+] Active Build Number: %d\n",
-		Authenticating:        "\n[*] Authenticating with Discord API (GET /api/v9/users/@me)...",
-		AuthFailed:            "[-] Authentication failed: %v\n",
-		AuthSuccess:           "[+] Authentication Successful!\n",
-		DiscoveringQuests:     "\n[*] Discovering Active Quests (GET /api/v9/quests/@me)...",
-		FailedRetrieveQuests:  "[-] Failed to retrieve quests: %v\n",
-		FailedRefreshQuests:   "[-] Failed to refresh quests after enrollment: %v\n",
-		DryRunNotice:          "\n[!] Dry-run enabled: scan completed successfully. No actions taken.",
-		AllTasksFinished:      "\n[+] All tasks finished.",
+		BannerSubtitle:         "Autonomous API Runner & OS Process Spoofer for Windows & Linux",
+		ModeAPIRunner:          "Autonomous API Runner (Default, Discord-Independent)",
+		ModeSpoofer:            "OS Process Spoofer (-spoofer, Emulates Game Process)",
+		PromptExitError:        "\n[!] An error occurred.",
+		PromptExitKey:          "\n[?] Press Enter to exit...",
+		NoEligibleQuests:       "[+] No quests need completion at this time (All active quests are either completed or claimed)!",
+		FoundEligibleQuests:    "\n[+] Found %d quest(s) to complete:\n",
+		RemainingQuestSec:      "Remaining: ~%.0fs / %ds",
+		ProcessingQuestHeader:  ">>> Processing [%d/%d]: %s (%s) <<<",
+		SkipUnsupportedTask:    "[!] Skipping quest %s: Task type %s is not supported for automation.\n",
+		QuestErrorSkip:         "[-] Error processing %s: %v. Moving to next quest...\n",
+		VideoStart:             "[🎬 Video] Starting video playback: %s (Progress: %.0f/%.0fs)\n",
+		VideoProgressWarning:   "    [-] Video progress warning: %v\n",
+		VideoProgress:          "    [🎬] Progress: %.0f/%.0fs (%.0f%%)\n",
+		VideoCompleted:         "[✅] Video quest completed successfully: %s\n",
+		HeartbeatStart:         "[🎮 Game Heartbeat] Starting play simulation: %s (~%.0f min remaining)\n",
+		HeartbeatWarning:       "    [-] Heartbeat warning: %v\n",
+		HeartbeatProgress:      "    [🎮] [%s] Progress: %.0f/%.0fs (%.1f%%)\n",
+		HeartbeatCompleted:     "[✅] Play Quest completed: %s\n",
+		ActivityStart:          "[🕹️ Activity] Starting Activity: %s\n",
+		ActivityWarning:        "    [-] Activity heartbeat warning: %v\n",
+		ActivityProgress:       "    [🕹️] Activity Progress: %.0f/%.0fs\n",
+		ActivityCompleted:      "[✅] Activity completed: %s\n",
+		SpooferNoEligible:      "[+] No eligible PLAY_ON_DESKTOP quests found for Spoofer mode.",
+		SpooferHeader:          "\n>>> Spoofer Quest [%d/%d]: %s <<<\n",
+		SpooferNoExe:           "[-] Executable not found for AppID %s: %v\n",
+		SpooferLaunchError:     "[-] Error launching dummy game: %v\n",
+		SpooferProcCreated:     "[+] Created dummy game process: %s (PID: %d)\n",
+		SpooferProgress:        "[★] Progress: %.0fs / %ds (State: %s)\n",
+		SpooferCompleted:       "[✔] Spoofer Quest completed: %s!\n",
+		TokenSaved:             "[+] Discord token successfully saved to %s!\n\n",
+		TokenError:             "no valid Discord token found. Please provide via .token file or -token flag",
+		AutoEnrollHeader:       "\n[*] Checking for un-enrolled active quests...",
+		AutoEnrollError:        "[-] Auto-enroll encountered error: %v\n",
+		AutoEnrollSuccess:      "[+] Successfully auto-enrolled in %d new quest(s)!\n",
+		AutoEnrollRefresh:      "[*] Refreshing quest inventory after enrollment...",
+		AutoEnrollAllEnrolled:  "[+] All eligible active quests are already enrolled.",
+		TableInventory:         "\n=== Discord Quest Inventory (Total: %d) ===\n",
+		TableBreakdown:         "Status Breakdown: Claimed: %d | Completed: %d | Enrolled: %d | Available: %d | Expired: %d\n",
+		TableHeaderID:          "Quest ID",
+		TableHeaderTitle:       "Title / Game",
+		TableHeaderCategory:    "Category",
+		TableHeaderTaskType:    "Task Type",
+		TableHeaderProgress:    "Progress",
+		TableHeaderState:       "State",
+		CatPurePC:              "🖥️ Pure PC (Game)",
+		CatCrossPlatform:       "🎮 Cross-Platform",
+		CatVideoDesktop:        "📺 Video (Desktop)",
+		CatVideoMobile:         "📱 Video (Mobile)",
+		CatActivity:            "🏆 Activity/Mission",
+		CatOther:               "❓ Other",
+		ScrapingCDN:            "\n[*] Scraping latest Discord client_build_number from CDN...",
+		ActiveBuild:            "[+] Active Build Number: %d\n",
+		Authenticating:         "\n[*] Authenticating with Discord API (GET /api/v9/users/@me)...",
+		AuthFailed:             "[-] Authentication failed: %v\n",
+		AuthSuccess:            "[+] Authentication Successful!\n",
+		DiscoveringQuests:      "\n[*] Discovering Active Quests (GET /api/v9/quests/@me)...",
+		FailedRetrieveQuests:   "[-] Failed to retrieve quests: %v\n",
+		FailedRefreshQuests:    "[-] Failed to refresh quests after enrollment: %v\n",
+		DryRunNotice:           "\n[!] Dry-run enabled: scan completed successfully. No actions taken.",
+		AllTasksFinished:       "\n[+] All tasks finished.",
 		RegionScanStart:        "\n[*] Multi-Region Sweep: Scanning regions [%s] to reveal hidden quests & frames...",
 		RegionScanDone:         "[+] Region scan complete: Found %d unique quest(s) across all probed locales.\n",
+		SweepStart:             "\n[*] Regional Quest Sweep: %d target(s) configured (local egress first, proxies next)...\n",
+		SweepSummary:           "[+] Sweep complete: %d/%d target(s) OK | %d unique quest(s) | %d excluded by Discord | %d request(s) in %s\n",
+		SweepTargetsFailed:     "[!] %d target(s) failed this pass: %s\n",
+		ExcludedHint:           "[i] %d quest(s) are withheld by Discord for this account (region/platform/eligibility). Quest eligibility follows the request IP; configure regional proxies with -proxy/-proxy-file for true cross-region discovery.\n",
+		CacheFallbackNote:      "[!] Live discovery was incomplete; restored %d active quest(s) from the previous local snapshot.\n",
+		LocaleSweepNote:        "[i] %d locale-only target(s) are active. Locale headers only localize responses; they do not change quest eligibility.\n",
+		AccessSuspended:        "\n[🛑] QUEST ACCESS SUSPENDED by Discord until %s. Halting all quest activity (enroll/progress) to avoid account penalties.\n",
+		EnrollBlocked:          "\n[⚠️] Quest enrollment is blocked by Discord until %s. Auto-enroll is skipped this pass; already-enrolled quests keep progressing.\n",
+		CacheEnrollSkip:        "[!] %d quest(s) will not be auto-enrolled this pass: restored from the local snapshot or their regional proxy is no longer configured (stale sealed metadata is unsafe to enroll).\n",
 		CaptchaAlertTerminal:   "\n[⚠️ CAPTCHA REQUIRED] Discord requires human verification for quest '%s' (%s)!\n",
 		CaptchaPortalLink:      "    👉 Open verification portal on your phone or browser (same LAN WiFi):\n       http://%s:%d/?quest=%s\n",
 		CaptchaDeepLink:        "    👉 Or open directly in official Discord app: https://discord.com/quests/%s\n",
@@ -201,88 +219,97 @@ var catalogs = map[Language]Messages{
 		ExpiredQuestsHidden:    "    ⌛ [EXPIRED] %s (%s)\n",
 		SpooferFetchWarning:    "    [-] Spoofer progress poll failed: %v\n",
 		AuthFailedHint:         "\n[i] Your Discord token is invalid or expired. Re-run setup_token.cmd and paste a fresh token.\n[i] Token cua ban da het han hoac khong hop le. Hay chay lai setup_token.cmd de nhap token moi.\n",
-		BadgeProfileHeader:    "Badges",
-		BadgeNone:             "None",
-		BadgeTipPrompt:        " (Tip: run with -max-badge or -hypesquad bravery to unlock an instant badge!)",
-		BadgeJoiningHypeSquad: "[*] 🎖️ Badge Maximizer: Enrolling in %s...\n",
-		BadgeLeavingHypeSquad: "[*] 🎖️ HypeSquad: Leaving HypeSquad house...\n",
-		BadgeClaimSuccess:     "[+] 🎖️ Badge Maximizer: Successfully unlocked [%s] badge!\n",
-		BadgeAlreadyOwned:     "[+] 🎖️ Badge Maximizer: Account already holds [%s] badge.\n",
-		BadgeLeaveSuccess:     "[+] 🎖️ HypeSquad: Successfully removed HypeSquad badge.\n",
-		BadgeError:            "[-] 🎖️ Badge operation error: %v\n",
-		BadgeAutoEnrolling:    "[*] 🎖️ Badge Maximizer: No HypeSquad badge detected. Auto-claiming House of Bravery badge...\n",
-		BadgeDryRunJoin:       "[*] [DRY-RUN] 🎖️ Badge Maximizer: Would enroll in %s (no changes made)\n",
-		BadgeDryRunLeave:      "[*] [DRY-RUN] 🎖️ HypeSquad: Would leave HypeSquad house (no changes made)\n",
-		BadgeDryRunAutoEnroll: "[*] [DRY-RUN] 🎖️ Badge Maximizer: No HypeSquad badge detected. Would auto-claim House of Bravery badge (no changes made)\n",
-		SummaryHeader:         "\n======================= SUMMARY / TỔNG KẾT =======================",
-		SummaryBadges:         "[🎖️] Profile Badges: %s\n",
-		SummaryQuestsDone:     "[✅] Quests Status:  %d Completed / %d Total Active\n",
-		SummaryClaimReminder:  "[🎁] Open Discord Desktop/Mobile to claim your rewards & avatar decorations!\n==================================================================\n",
+		BadgeProfileHeader:     "Badges",
+		BadgeNone:              "None",
+		BadgeTipPrompt:         " (Tip: run with -max-badge or -hypesquad bravery to unlock an instant badge!)",
+		BadgeJoiningHypeSquad:  "[*] 🎖️ Badge Maximizer: Enrolling in %s...\n",
+		BadgeLeavingHypeSquad:  "[*] 🎖️ HypeSquad: Leaving HypeSquad house...\n",
+		BadgeClaimSuccess:      "[+] 🎖️ Badge Maximizer: Successfully unlocked [%s] badge!\n",
+		BadgeAlreadyOwned:      "[+] 🎖️ Badge Maximizer: Account already holds [%s] badge.\n",
+		BadgeLeaveSuccess:      "[+] 🎖️ HypeSquad: Successfully removed HypeSquad badge.\n",
+		BadgeError:             "[-] 🎖️ Badge operation error: %v\n",
+		BadgeAutoEnrolling:     "[*] 🎖️ Badge Maximizer: No HypeSquad badge detected. Auto-claiming House of Bravery badge...\n",
+		BadgeDryRunJoin:        "[*] [DRY-RUN] 🎖️ Badge Maximizer: Would enroll in %s (no changes made)\n",
+		BadgeDryRunLeave:       "[*] [DRY-RUN] 🎖️ HypeSquad: Would leave HypeSquad house (no changes made)\n",
+		BadgeDryRunAutoEnroll:  "[*] [DRY-RUN] 🎖️ Badge Maximizer: No HypeSquad badge detected. Would auto-claim House of Bravery badge (no changes made)\n",
+		SummaryHeader:          "\n======================= SUMMARY / TỔNG KẾT =======================",
+		SummaryBadges:          "[🎖️] Profile Badges: %s\n",
+		SummaryQuestsDone:      "[✅] Quests Status:  %d Completed / %d Total Active\n",
+		SummaryClaimReminder:   "[🎁] Open Discord Desktop/Mobile to claim your rewards & avatar decorations!\n==================================================================\n",
 	},
 	LangVI: {
-		BannerSubtitle:        "Chạy API Tự Động & Giả Lập Tiến Trình Game Cho Windows & Linux",
-		ModeAPIRunner:         "Chạy API Tự Động (Mặc định, Độc lập với Discord App)",
-		ModeSpoofer:           "Giả Lập Tiến Trình Game Hệ Điều Hành (-spoofer)",
-		PromptExitError:       "\n[!] Đã xảy ra lỗi.",
-		PromptExitKey:         "\n[?] Nhấn phím Enter để thoát...",
-		NoEligibleQuests:      "[+] Không có quest nào cần hoàn thành lúc này (Tất cả quest đang hoạt động đã hoàn tất hoặc đã nhận thưởng)!",
-		FoundEligibleQuests:   "\n[+] Tìm thấy %d quest cần hoàn thành:\n",
-		RemainingQuestSec:     "Còn lại: ~%.0fs / %ds",
-		ProcessingQuestHeader: ">>> Đang xử lý [%d/%d]: %s (%s) <<<",
-		SkipUnsupportedTask:   "[!] Bỏ qua quest %s: Loại task %s chưa được hỗ trợ tự động.\n",
-		QuestErrorSkip:        "[-] Lỗi khi xử lý %s: %v. Chuyển sang quest tiếp theo...\n",
-		VideoStart:            "[🎬 Video] Bắt đầu phát video: %s (Tiến độ: %.0f/%.0fs)\n",
-		VideoProgressWarning:  "    [-] Cảnh báo video progress: %v\n",
-		VideoProgress:         "    [🎬] Tiến độ: %.0f/%.0fs (%.0f%%)\n",
-		VideoCompleted:        "[✅] Hoàn thành xuất sắc video quest: %s\n",
-		HeartbeatStart:        "[🎮 Game Heartbeat] Bắt đầu gửi tín hiệu chơi: %s (~%.0f phút còn lại)\n",
-		HeartbeatWarning:      "    [-] Cảnh báo heartbeat: %v\n",
-		HeartbeatProgress:     "    [🎮] [%s] Tiến độ: %.0f/%.0fs (%.1f%%)\n",
-		HeartbeatCompleted:    "[✅] Hoàn thành Play Quest: %s\n",
-		ActivityStart:         "[🕹️ Activity] Bắt đầu Activity: %s\n",
-		ActivityWarning:       "    [-] Cảnh báo activity heartbeat: %v\n",
-		ActivityProgress:      "    [🕹️] Tiến độ Activity: %.0f/%.0fs\n",
-		ActivityCompleted:     "[✅] Hoàn thành Activity: %s\n",
-		SpooferNoEligible:     "[+] Không có quest PLAY_ON_DESKTOP nào đủ điều kiện để chạy Spoofer.",
-		SpooferHeader:         "\n>>> Spoofer Quest [%d/%d]: %s <<<\n",
-		SpooferNoExe:          "[-] Không tìm thấy executable cho AppID %s: %v\n",
-		SpooferLaunchError:    "[-] Lỗi khởi động dummy game: %v\n",
-		SpooferProcCreated:    "[+] Đã tạo tiến trình game ảo: %s (PID: %d)\n",
-		SpooferProgress:       "[★] Tiến độ: %.0fs / %ds (State: %s)\n",
-		SpooferCompleted:      "[✔] Hoàn thành Spoofer Quest: %s!\n",
-		TokenSaved:            "[+] Đã lưu token vào file %s thành công!\n\n",
-		TokenError:            "không tìm thấy Discord token hợp lệ. Vui lòng cung cấp qua file .token hoặc cờ -token",
-		AutoEnrollHeader:      "\n[*] Đang kiểm tra các quest chưa tham gia...",
-		AutoEnrollError:       "[-] Lỗi khi tự động nhận quest: %v\n",
-		AutoEnrollSuccess:     "[+] Đã tự động tham gia thành công %d quest mới!\n",
-		AutoEnrollRefresh:     "[*] Đang làm mới danh sách quest sau khi nhận...",
-		AutoEnrollAllEnrolled: "[+] Tất cả quest hợp lệ đều đã được tham gia.",
-		TableInventory:        "\n=== Danh Mục Nhiệm Vụ Discord (Tổng: %d) ===\n",
-		TableBreakdown:        "Phân loại trạng thái: Đã nhận quà: %d | Hoàn tất: %d | Đang chạy: %d | Khả dụng: %d | Hết hạn: %d\n",
-		TableHeaderID:         "Quest ID",
-		TableHeaderTitle:      "Tên Game / Nhiệm vụ",
-		TableHeaderCategory:   "Phân loại",
-		TableHeaderTaskType:   "Loại Task",
-		TableHeaderProgress:   "Tiến độ",
-		TableHeaderState:      "Trạng thái",
-		CatPurePC:             "🖥️ PC Thuần (Game)",
-		CatCrossPlatform:      "🎮 Đa Nền Tảng (PC/Console)",
-		CatVideoDesktop:       "📺 Xem Video (PC)",
-		CatVideoMobile:        "📱 Xem Video (Điện thoại)",
-		CatActivity:           "🏆 Hoạt Động/Nhiệm Vụ",
-		CatOther:              "❓ Khác",
-		ScrapingCDN:           "\n[*] Đang cào client_build_number mới nhất từ Discord CDN...",
-		ActiveBuild:           "[+] Build Number đang hoạt động: %d\n",
-		Authenticating:        "\n[*] Đang xác thực với Discord API (GET /api/v9/users/@me)...",
-		AuthFailed:            "[-] Xác thực thất bại: %v\n",
-		AuthSuccess:           "[+] Xác thực thành công!\n",
-		DiscoveringQuests:     "\n[*] Đang tìm kiếm Quest hoạt động (GET /api/v9/quests/@me)...",
-		FailedRetrieveQuests:  "[-] Lấy danh sách quest thất bại: %v\n",
-		FailedRefreshQuests:   "[-] Không thể làm mới danh sách quest sau khi nhận: %v\n",
-		DryRunNotice:          "\n[!] Chế độ Dry-run: quét hoàn tất, không thực hiện hành động nào.",
-		AllTasksFinished:      "\n[+] Tất cả nhiệm vụ đã hoàn tất.",
+		BannerSubtitle:         "Chạy API Tự Động & Giả Lập Tiến Trình Game Cho Windows & Linux",
+		ModeAPIRunner:          "Chạy API Tự Động (Mặc định, Độc lập với Discord App)",
+		ModeSpoofer:            "Giả Lập Tiến Trình Game Hệ Điều Hành (-spoofer)",
+		PromptExitError:        "\n[!] Đã xảy ra lỗi.",
+		PromptExitKey:          "\n[?] Nhấn phím Enter để thoát...",
+		NoEligibleQuests:       "[+] Không có quest nào cần hoàn thành lúc này (Tất cả quest đang hoạt động đã hoàn tất hoặc đã nhận thưởng)!",
+		FoundEligibleQuests:    "\n[+] Tìm thấy %d quest cần hoàn thành:\n",
+		RemainingQuestSec:      "Còn lại: ~%.0fs / %ds",
+		ProcessingQuestHeader:  ">>> Đang xử lý [%d/%d]: %s (%s) <<<",
+		SkipUnsupportedTask:    "[!] Bỏ qua quest %s: Loại task %s chưa được hỗ trợ tự động.\n",
+		QuestErrorSkip:         "[-] Lỗi khi xử lý %s: %v. Chuyển sang quest tiếp theo...\n",
+		VideoStart:             "[🎬 Video] Bắt đầu phát video: %s (Tiến độ: %.0f/%.0fs)\n",
+		VideoProgressWarning:   "    [-] Cảnh báo video progress: %v\n",
+		VideoProgress:          "    [🎬] Tiến độ: %.0f/%.0fs (%.0f%%)\n",
+		VideoCompleted:         "[✅] Hoàn thành xuất sắc video quest: %s\n",
+		HeartbeatStart:         "[🎮 Game Heartbeat] Bắt đầu gửi tín hiệu chơi: %s (~%.0f phút còn lại)\n",
+		HeartbeatWarning:       "    [-] Cảnh báo heartbeat: %v\n",
+		HeartbeatProgress:      "    [🎮] [%s] Tiến độ: %.0f/%.0fs (%.1f%%)\n",
+		HeartbeatCompleted:     "[✅] Hoàn thành Play Quest: %s\n",
+		ActivityStart:          "[🕹️ Activity] Bắt đầu Activity: %s\n",
+		ActivityWarning:        "    [-] Cảnh báo activity heartbeat: %v\n",
+		ActivityProgress:       "    [🕹️] Tiến độ Activity: %.0f/%.0fs\n",
+		ActivityCompleted:      "[✅] Hoàn thành Activity: %s\n",
+		SpooferNoEligible:      "[+] Không có quest PLAY_ON_DESKTOP nào đủ điều kiện để chạy Spoofer.",
+		SpooferHeader:          "\n>>> Spoofer Quest [%d/%d]: %s <<<\n",
+		SpooferNoExe:           "[-] Không tìm thấy executable cho AppID %s: %v\n",
+		SpooferLaunchError:     "[-] Lỗi khởi động dummy game: %v\n",
+		SpooferProcCreated:     "[+] Đã tạo tiến trình game ảo: %s (PID: %d)\n",
+		SpooferProgress:        "[★] Tiến độ: %.0fs / %ds (State: %s)\n",
+		SpooferCompleted:       "[✔] Hoàn thành Spoofer Quest: %s!\n",
+		TokenSaved:             "[+] Đã lưu token vào file %s thành công!\n\n",
+		TokenError:             "không tìm thấy Discord token hợp lệ. Vui lòng cung cấp qua file .token hoặc cờ -token",
+		AutoEnrollHeader:       "\n[*] Đang kiểm tra các quest chưa tham gia...",
+		AutoEnrollError:        "[-] Lỗi khi tự động nhận quest: %v\n",
+		AutoEnrollSuccess:      "[+] Đã tự động tham gia thành công %d quest mới!\n",
+		AutoEnrollRefresh:      "[*] Đang làm mới danh sách quest sau khi nhận...",
+		AutoEnrollAllEnrolled:  "[+] Tất cả quest hợp lệ đều đã được tham gia.",
+		TableInventory:         "\n=== Danh Mục Nhiệm Vụ Discord (Tổng: %d) ===\n",
+		TableBreakdown:         "Phân loại trạng thái: Đã nhận quà: %d | Hoàn tất: %d | Đang chạy: %d | Khả dụng: %d | Hết hạn: %d\n",
+		TableHeaderID:          "Quest ID",
+		TableHeaderTitle:       "Tên Game / Nhiệm vụ",
+		TableHeaderCategory:    "Phân loại",
+		TableHeaderTaskType:    "Loại Task",
+		TableHeaderProgress:    "Tiến độ",
+		TableHeaderState:       "Trạng thái",
+		CatPurePC:              "🖥️ PC Thuần (Game)",
+		CatCrossPlatform:       "🎮 Đa Nền Tảng (PC/Console)",
+		CatVideoDesktop:        "📺 Xem Video (PC)",
+		CatVideoMobile:         "📱 Xem Video (Điện thoại)",
+		CatActivity:            "🏆 Hoạt Động/Nhiệm Vụ",
+		CatOther:               "❓ Khác",
+		ScrapingCDN:            "\n[*] Đang cào client_build_number mới nhất từ Discord CDN...",
+		ActiveBuild:            "[+] Build Number đang hoạt động: %d\n",
+		Authenticating:         "\n[*] Đang xác thực với Discord API (GET /api/v9/users/@me)...",
+		AuthFailed:             "[-] Xác thực thất bại: %v\n",
+		AuthSuccess:            "[+] Xác thực thành công!\n",
+		DiscoveringQuests:      "\n[*] Đang tìm kiếm Quest hoạt động (GET /api/v9/quests/@me)...",
+		FailedRetrieveQuests:   "[-] Lấy danh sách quest thất bại: %v\n",
+		FailedRefreshQuests:    "[-] Không thể làm mới danh sách quest sau khi nhận: %v\n",
+		DryRunNotice:           "\n[!] Chế độ Dry-run: quét hoàn tất, không thực hiện hành động nào.",
+		AllTasksFinished:       "\n[+] Tất cả nhiệm vụ đã hoàn tất.",
 		RegionScanStart:        "\n[*] Quét Đa Vùng (Multi-Region Sweep): Đang quét các vùng [%s] để mở khóa quest & khung avatar bị ẩn...",
 		RegionScanDone:         "[+] Quét vùng hoàn tất: Tìm thấy %d nhiệm vụ duy nhất từ các khu vực.\n",
+		SweepStart:             "\n[*] Quét Nhiệm Vụ Đa Vùng: %d mục tiêu (ưu tiên IP hiện tại, sau đó tới proxy)...\n",
+		SweepSummary:           "[+] Quét xong: %d/%d mục tiêu OK | %d nhiệm vụ duy nhất | %d bị Discord loại | %d request trong %s\n",
+		SweepTargetsFailed:     "[!] %d mục tiêu lỗi ở lượt này: %s\n",
+		ExcludedHint:           "[i] %d nhiệm vụ bị Discord ẩn với tài khoản này (vùng/nền tảng/điều kiện). Điều kiện quest phụ thuộc IP gửi request; hãy cấu hình proxy vùng qua -proxy/-proxy-file để quét thật sự đa vùng.\n",
+		CacheFallbackNote:      "[!] Lượt quét trực tiếp chưa đầy đủ; đã khôi phục %d nhiệm vụ còn hạn từ bản lưu trước đó.\n",
+		LocaleSweepNote:        "[i] Đang bật %d mục tiêu chỉ đổi locale. Header locale chỉ đổi ngôn ngữ, không đổi điều kiện nhận quest.\n",
+		AccessSuspended:        "\n[🛑] Discord đã TẠM KHÓA quyền nhận quest tới %s. Dừng toàn bộ hoạt động quest (nhận/tiến trình) để tránh bị xử phạt tài khoản.\n",
+		EnrollBlocked:          "\n[⚠️] Discord đang chặn nhận quest mới tới %s. Bỏ qua tự động nhận ở lượt này; các quest đã nhận vẫn tiếp tục.\n",
+		CacheEnrollSkip:        "[!] %d nhiệm vụ sẽ không được tự nhận ở lượt này: được khôi phục từ bản lưu hoặc proxy vùng tương ứng không còn cấu hình (metadata cũ không an toàn để nhận).\n",
 		CaptchaAlertTerminal:   "\n[⚠️ YÊU CẦU CAPTCHA] Discord yêu cầu xác minh người thật cho quest '%s' (%s)!\n",
 		CaptchaPortalLink:      "    👉 Mở cổng xác minh trên điện thoại hoặc trình duyệt (cùng mạng WiFi/LAN):\n       http://%s:%d/?quest=%s\n",
 		CaptchaDeepLink:        "    👉 Hoặc mở trực tiếp trên app Discord: https://discord.com/quests/%s\n",
@@ -302,23 +329,23 @@ var catalogs = map[Language]Messages{
 		ExpiredQuestsHidden:    "    ⌛ [HẾT HẠN] %s (%s)\n",
 		SpooferFetchWarning:    "    [-] Lỗi khi kiểm tra tiến độ spoofer: %v\n",
 		AuthFailedHint:         "\n[i] Token Discord không hợp lệ hoặc đã hết hạn. Hãy chạy lại setup_token.cmd và dán token mới.\n",
-		BadgeProfileHeader:    "Huy hiệu",
-		BadgeNone:             "Chưa có",
-		BadgeTipPrompt:        " (Mẹo: chạy với -max-badge hoặc -hypesquad bravery để mở khóa huy hiệu ngay!)",
-		BadgeJoiningHypeSquad: "[*] 🎖️ Tối Ưu Huy Hiệu: Đang tham gia %s...\n",
-		BadgeLeavingHypeSquad: "[*] 🎖️ HypeSquad: Đang rời khỏi nhà HypeSquad...\n",
-		BadgeClaimSuccess:     "[+] 🎖️ Tối Ưu Huy Hiệu: Mở khóa thành công huy hiệu [%s]!\n",
-		BadgeAlreadyOwned:     "[+] 🎖️ Tối Ưu Huy Hiệu: Tài khoản đã sở hữu huy hiệu [%s].\n",
-		BadgeLeaveSuccess:     "[+] 🎖️ HypeSquad: Đã gỡ bỏ thành công huy hiệu HypeSquad.\n",
-		BadgeError:            "[-] 🎖️ Lỗi thao tác huy hiệu: %v\n",
-		BadgeAutoEnrolling:    "[*] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Tự động nhận huy hiệu House of Bravery...\n",
-		BadgeDryRunJoin:       "[*] [DRY-RUN] 🎖️ Tối Ưu Huy Hiệu: Sẽ tham gia %s (chế độ giả lập, không thay đổi)\n",
-		BadgeDryRunLeave:      "[*] [DRY-RUN] 🎖️ HypeSquad: Sẽ rời khỏi nhà HypeSquad (chế độ giả lập, không thay đổi)\n",
-		BadgeDryRunAutoEnroll: "[*] [DRY-RUN] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Sẽ tự động nhận huy hiệu House of Bravery (chế độ giả lập, không thay đổi)\n",
-		SummaryHeader:         "\n======================= SUMMARY / TỔNG KẾT =======================",
-		SummaryBadges:         "[🎖️] Huy hiệu hồ sơ: %s\n",
-		SummaryQuestsDone:     "[✅] Trạng thái Quest: %d Đã xong / %d Tổng quest khả dụng\n",
-		SummaryClaimReminder:  "[🎁] Hãy mở Discord trên máy tính hoặc điện thoại để nhận quà và khung avatar!\n==================================================================\n",
+		BadgeProfileHeader:     "Huy hiệu",
+		BadgeNone:              "Chưa có",
+		BadgeTipPrompt:         " (Mẹo: chạy với -max-badge hoặc -hypesquad bravery để mở khóa huy hiệu ngay!)",
+		BadgeJoiningHypeSquad:  "[*] 🎖️ Tối Ưu Huy Hiệu: Đang tham gia %s...\n",
+		BadgeLeavingHypeSquad:  "[*] 🎖️ HypeSquad: Đang rời khỏi nhà HypeSquad...\n",
+		BadgeClaimSuccess:      "[+] 🎖️ Tối Ưu Huy Hiệu: Mở khóa thành công huy hiệu [%s]!\n",
+		BadgeAlreadyOwned:      "[+] 🎖️ Tối Ưu Huy Hiệu: Tài khoản đã sở hữu huy hiệu [%s].\n",
+		BadgeLeaveSuccess:      "[+] 🎖️ HypeSquad: Đã gỡ bỏ thành công huy hiệu HypeSquad.\n",
+		BadgeError:             "[-] 🎖️ Lỗi thao tác huy hiệu: %v\n",
+		BadgeAutoEnrolling:     "[*] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Tự động nhận huy hiệu House of Bravery...\n",
+		BadgeDryRunJoin:        "[*] [DRY-RUN] 🎖️ Tối Ưu Huy Hiệu: Sẽ tham gia %s (chế độ giả lập, không thay đổi)\n",
+		BadgeDryRunLeave:       "[*] [DRY-RUN] 🎖️ HypeSquad: Sẽ rời khỏi nhà HypeSquad (chế độ giả lập, không thay đổi)\n",
+		BadgeDryRunAutoEnroll:  "[*] [DRY-RUN] 🎖️ Tối Ưu Huy Hiệu: Chưa có huy hiệu HypeSquad. Sẽ tự động nhận huy hiệu House of Bravery (chế độ giả lập, không thay đổi)\n",
+		SummaryHeader:          "\n======================= SUMMARY / TỔNG KẾT =======================",
+		SummaryBadges:          "[🎖️] Huy hiệu hồ sơ: %s\n",
+		SummaryQuestsDone:      "[✅] Trạng thái Quest: %d Đã xong / %d Tổng quest khả dụng\n",
+		SummaryClaimReminder:   "[🎁] Hãy mở Discord trên máy tính hoặc điện thoại để nhận quà và khung avatar!\n==================================================================\n",
 	},
 }
 
