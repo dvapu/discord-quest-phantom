@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"discord-quest-completer/pkg/i18n"
+	"discord-quest-completer/pkg/identity"
 )
 
 // Config represents the application runtime configuration.
@@ -40,6 +41,10 @@ type Config struct {
 	Daemon        bool
 	HypeSquad     string
 	MaxBadge      bool
+	Fingerprint   string
+	Jitter        float64
+	ProfileStore  bool
+	PresenceGuard bool
 }
 
 // ParseHypeSquadAction parses a user string for HypeSquad House enrollment/leaving.
@@ -70,7 +75,8 @@ func MaskToken(token string) string {
 	return token[:6] + "..." + token[len(token)-4:]
 }
 
-// ResolveToken discovers the Discord token from CLI, environment variable, or .token files.
+// ResolveToken discovers the Discord token from CLI, environment variable,
+// encrypted vault, or .token files.
 func ResolveToken(cliToken string) (string, error) {
 	if cliToken != "" {
 		return strings.Trim(strings.TrimSpace(cliToken), "\"' \r\n\t"), nil
@@ -78,6 +84,11 @@ func ResolveToken(cliToken string) (string, error) {
 
 	if envToken := os.Getenv("DISCORD_TOKEN"); envToken != "" {
 		return strings.Trim(strings.TrimSpace(envToken), "\"' \r\n\t"), nil
+	}
+
+	cacheDir := DefaultCacheDir()
+	if token, ok := readTokenVault(cacheDir); ok {
+		return token, nil
 	}
 
 	// Determine executable directory for portable lookup
@@ -103,9 +114,10 @@ func ResolveToken(cliToken string) (string, error) {
 		)
 	}
 
-	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
-		candidates = append(candidates, filepath.Join(localAppData, "DiscordQuestCompleter", ".token"))
-	}
+	candidates = append(candidates,
+		filepath.Join(cacheDir, ".token"),
+	)
+
 	if homeDir, err := os.UserHomeDir(); err == nil {
 		candidates = append(candidates, filepath.Join(homeDir, ".config", "discord-quest-completer", ".token"))
 	}
@@ -115,6 +127,7 @@ func ResolveToken(cliToken string) (string, error) {
 		if err == nil {
 			token := strings.Trim(strings.TrimSpace(string(data)), "\"' \r\n\t")
 			if token != "" {
+				migrateTokenToVault(cacheDir, token)
 				return token, nil
 			}
 		}
@@ -131,6 +144,10 @@ func ResolveToken(cliToken string) (string, error) {
 	if errInput == nil {
 		token := strings.Trim(strings.TrimSpace(input), "\"' \r\n\t")
 		if len(token) > 20 {
+			if writeTokenVault(cacheDir, token) == nil {
+				fmt.Printf(i18n.M().TokenSaved, tokenVaultPath(cacheDir))
+				return token, nil
+			}
 			targetFile := ".token"
 			if exeDir != "" {
 				targetFile = filepath.Join(exeDir, ".token")
@@ -142,6 +159,72 @@ func ResolveToken(cliToken string) (string, error) {
 	}
 
 	return "", fmt.Errorf("%s", i18n.M().TokenError)
+}
+
+// DefaultCacheDir returns the per-user cache directory used for profiles,
+// stubs and the encrypted token vault.
+func DefaultCacheDir() string {
+	if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
+		return filepath.Join(localAppData, "DiscordQuestCompleter")
+	}
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(homeDir, ".cache", "discord-quest-completer")
+	}
+	return filepath.Join(os.TempDir(), "discord-quest-completer")
+}
+
+func tokenVaultPath(cacheDir string) string {
+	return filepath.Join(cacheDir, "token.bin")
+}
+
+func readTokenVault(cacheDir string) (string, bool) {
+	sealed, err := os.ReadFile(tokenVaultPath(cacheDir))
+	if err != nil {
+		return "", false
+	}
+	plain, err := identity.Unprotect(sealed)
+	if err != nil {
+		return "", false
+	}
+	token := strings.Trim(strings.TrimSpace(string(plain)), "\"' \r\n\t")
+	if token == "" {
+		return "", false
+	}
+	return token, true
+}
+
+func writeTokenVault(cacheDir, token string) error {
+	if !identity.ProtectionStrong() {
+		return fmt.Errorf("no per-user secret store on this platform")
+	}
+	if err := os.MkdirAll(cacheDir, 0o700); err != nil {
+		return err
+	}
+	sealed, err := identity.Protect([]byte(token))
+	if err != nil {
+		return err
+	}
+	temp := tokenVaultPath(cacheDir) + ".tmp"
+	if err := os.WriteFile(temp, sealed, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(temp, tokenVaultPath(cacheDir))
+}
+
+// migrateTokenToVault seals a plaintext token once, without deleting the
+// original file: removing user files is the user's decision, not the tool's.
+func migrateTokenToVault(cacheDir, token string) {
+	if !identity.ProtectionStrong() {
+		return
+	}
+	if _, err := os.Stat(tokenVaultPath(cacheDir)); err == nil {
+		return
+	}
+	if err := writeTokenVault(cacheDir, token); err != nil {
+		return
+	}
+	fmt.Printf("[i] Token sealed with %s at %s\n", identity.ProtectionLabel(), tokenVaultPath(cacheDir))
+	fmt.Println("    The old plaintext .token file was left in place; delete it yourself when convenient.")
 }
 
 // LoadConfig parses command-line arguments and constructs the active Config.
@@ -178,6 +261,10 @@ func LoadConfig() (*Config, error) {
 	flag.StringVar(&cfg.HypeSquad, "hypesquad", "", "HypeSquad House: bravery (1), brilliance (2), balance (3), leave (0)")
 	flag.BoolVar(&maxBadgeFlag, "max-badge", true, "Auto-claim HypeSquad House badge if missing (default: true)")
 	flag.BoolVar(&badgesFlag, "badges", true, "Alias for -max-badge")
+	flag.StringVar(&cfg.Fingerprint, "fingerprint", "auto", "Device fingerprint source: auto (derive from the installed Discord client) or legacy (fixed built-in values)")
+	flag.Float64Var(&cfg.Jitter, "jitter", 0.15, "Timing jitter as a fraction of each delay, e.g. 0.15 for +-15% (0 disables jitter)")
+	flag.BoolVar(&cfg.ProfileStore, "profile-store", true, "Store one stable device profile per account, sealed with DPAPI on Windows")
+	flag.BoolVar(&cfg.PresenceGuard, "presence-guard", true, "Pause desktop-game spoofing while you are actually playing another game or using a full-screen app")
 
 	// Internal stub mode flags (used when spawned as a spoofed game process)
 	flag.BoolVar(&cfg.RunStub, "stub", false, "Internal stub mode: run as dummy game process")
@@ -205,13 +292,7 @@ func LoadConfig() (*Config, error) {
 	cfg.Token = token
 
 	if cfg.CacheDir == "" {
-		if localAppData := os.Getenv("LOCALAPPDATA"); localAppData != "" {
-			cfg.CacheDir = filepath.Join(localAppData, "DiscordQuestCompleter")
-		} else if homeDir, err := os.UserHomeDir(); err == nil {
-			cfg.CacheDir = filepath.Join(homeDir, ".cache", "discord-quest-completer")
-		} else {
-			cfg.CacheDir = filepath.Join(os.TempDir(), "discord-quest-completer")
-		}
+		cfg.CacheDir = DefaultCacheDir()
 	}
 
 	return cfg, nil

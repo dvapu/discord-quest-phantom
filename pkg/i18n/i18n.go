@@ -354,6 +354,13 @@ var (
 	mu          sync.RWMutex
 )
 
+// OSLocale returns the operating system UI locale as a BCP-47 tag (for
+// example "vi-VN"), or an empty string when it cannot be detected. It is the
+// authoritative value for the client's system_locale field.
+func OSLocale() string {
+	return detectOSLocale()
+}
+
 // DetectLocale auto-detects the system's preferred language.
 func DetectLocale() Language {
 	for _, env := range []string{"QUEST_LANG", "LC_ALL", "LC_MESSAGES", "LANG"} {

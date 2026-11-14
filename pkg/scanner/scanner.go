@@ -10,7 +10,12 @@ import (
 	"discord-quest-completer/pkg/api"
 	"discord-quest-completer/pkg/captcha"
 	"discord-quest-completer/pkg/i18n"
+	"discord-quest-completer/pkg/pacing"
 )
+
+// EnrollSpread is the relative jitter applied to the delay between enrollments.
+// main wires it from the -jitter flag; zero disables jitter.
+var EnrollSpread = pacing.DefaultSpread
 
 // QuestState represents the current user status for a quest.
 type QuestState string
@@ -280,11 +285,10 @@ func AutoEnrollPending(ctx context.Context, client *api.Client, quests []Analyze
 			continue
 		}
 		enrolled = append(enrolled, q.ID)
-		// Polite delay between enrollments to respect Discord burst rate limits
-		select {
-		case <-ctx.Done():
+		// Polite delay between enrollments to respect Discord burst rate limits.
+		// The delay is jittered so the cadence does not look clockwork.
+		if !pacing.Sleep(ctx, 2500*time.Millisecond, EnrollSpread) {
 			return enrolled, ctx.Err()
-		case <-time.After(2500 * time.Millisecond):
 		}
 	}
 	return enrolled, nil

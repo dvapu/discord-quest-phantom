@@ -18,7 +18,10 @@ import (
 	"discord-quest-completer/pkg/captcha"
 	"discord-quest-completer/pkg/config"
 	"discord-quest-completer/pkg/i18n"
+	"discord-quest-completer/pkg/identity"
 	"discord-quest-completer/pkg/inventory"
+	"discord-quest-completer/pkg/pacing"
+	"discord-quest-completer/pkg/presence"
 	"discord-quest-completer/pkg/scanner"
 	"discord-quest-completer/pkg/spoofer"
 	"discord-quest-completer/pkg/updater"
@@ -36,6 +39,31 @@ var sweepTargets []api.RegionTarget
 
 // snapshotSaveWarned keeps a broken cache file from spamming the console.
 var snapshotSaveWarned bool
+
+// timingJitter is the configured fraction applied to every inter-request delay.
+var timingJitter = 0.15
+
+// presenceGuardEnabled mirrors -presence-guard for code paths that do not
+// receive the config (the REST heartbeat loop).
+var presenceGuardEnabled = true
+
+// desktopPresenceConflict reports local activity that contradicts a REST
+// heartbeat for a desktop quest. Headless machines have nothing local to
+// contradict, so they are never blocked; the guard exists for the case where
+// the same person is visibly playing something else on this PC.
+func desktopPresenceConflict() string {
+	if !presenceGuardEnabled {
+		return ""
+	}
+	state := presence.Snapshot()
+	if !state.Supported || !state.Discord {
+		return ""
+	}
+	if state.Fullscreen {
+		return "a full-screen application is active on this machine"
+	}
+	return ""
+}
 
 // exitCode lets deferred cleanup report failure after the window is kept open.
 var exitCode int
@@ -67,6 +95,10 @@ func main() {
 		}
 		return
 	}
+
+	timingJitter = cfg.Jitter
+	scanner.EnrollSpread = cfg.Jitter
+	presenceGuardEnabled = cfg.PresenceGuard
 
 	defer func() {
 		if cfg.KeepOpen {
@@ -149,6 +181,18 @@ func main() {
 		fmt.Printf(i18n.M().LocaleSweepNote, localeTargets)
 	}
 
+	proxyEgress := 0
+	for _, target := range targets {
+		if target.ProxyURL != "" {
+			proxyEgress++
+		}
+	}
+	if proxyEgress > 1 {
+		fmt.Printf("[!] %d proxy egress regions configured. Inside one scan this account will\n", proxyEgress)
+		fmt.Println("    appear from that many different IPs - the strongest profiling signal the tool can emit.")
+		fmt.Println("    Use -region direct (no proxies) for the quietest, most consistent profile.")
+	}
+
 	// 3. Authenticate & Retrieve Account Identity
 	fmt.Println(i18n.M().Authenticating)
 	user, err := apiClient.ValidateToken(ctx)
@@ -180,6 +224,38 @@ func main() {
 	// 3.5. Badge Maximizer & HypeSquad House Management
 	user = handleBadgeMaximizer(ctx, cfg, apiClient, user)
 
+	// 3.6. Device identity: pin one consistent, self-consistent fingerprint to
+	// the account instead of a hardcoded one shared by every installation.
+	device := identity.Detect()
+	if strings.EqualFold(cfg.Fingerprint, "legacy") {
+		device.Fingerprint = api.DefaultFingerprint()
+		device.Fingerprint.SystemLocale = device.SystemLocale
+		device.Notes = append(device.Notes, "legacy mode: fingerprint values are fixed, not derived from this machine")
+	}
+	clientLocale := strings.TrimSpace(user.Locale)
+	if clientLocale == "" {
+		clientLocale = device.SystemLocale
+	}
+
+	var profile *identity.Profile
+	if cfg.ProfileStore {
+		store := identity.NewStore(cfg.CacheDir)
+		loaded, created, profileErr := store.Enforce(user.ID, device)
+		if profileErr != nil {
+			fmt.Fprintf(os.Stderr, "[!] Profile store: %v\n", profileErr)
+		}
+		if loaded != nil {
+			loaded.ClientLocale = clientLocale
+			loaded.Apply(apiClient)
+			profile = loaded
+			printProfileReport(profile, device, created)
+		}
+	} else {
+		apiClient.SetFingerprint(device.Fingerprint)
+		apiClient.SetLocale(clientLocale, device.Timezone)
+		printProfileReport(nil, device, false)
+	}
+
 	for {
 		executePass(ctx, cfg, apiClient, user)
 
@@ -196,7 +272,7 @@ func main() {
 		case <-ctx.Done():
 			fmt.Println("\n[*] Shutting down daemon gracefully...")
 			return
-		case <-time.After(cfg.PollInterval):
+		case <-time.After(pacing.Duration(cfg.PollInterval, timingJitter)):
 			fmt.Printf("\n[⏰] Starting periodic quest scan at %s...\n", time.Now().Format("15:04:05"))
 		}
 	}
@@ -498,6 +574,12 @@ func executePass(ctx context.Context, cfg *config.Config, apiClient *api.Client,
 		}
 	} else {
 		fmt.Printf("\n[*] %s\n", i18n.M().ModeAPIRunner)
+		if cfg.PresenceGuard {
+			if state := presence.Snapshot(); state.Supported && state.Discord {
+				fmt.Println("[i] Discord desktop is running here. For desktop quests the local spoofer (-spoofer) is the")
+				fmt.Println("    realistic path; REST heartbeats are only a fallback, and they pause while a full-screen game is active.")
+			}
+		}
 		if runErr := runAPIRunnerLoop(ctx, cfg, apiClient, analyzedQuests); runErr != nil {
 			if runErr != context.Canceled && ctx.Err() == nil {
 				fmt.Fprintf(os.Stderr, "[-] API Runner error: %v\n", runErr)
@@ -619,6 +701,48 @@ func printSessionSummary(user *api.UserMe, quests []scanner.AnalyzedQuest) {
 	fmt.Print(i18n.M().SummaryClaimReminder)
 }
 
+// printProfileReport shows which device identity the session will claim and
+// every inconsistency the audit found. It runs once per start, before traffic.
+func printProfileReport(profile *identity.Profile, device identity.Device, created bool) {
+	fmt.Printf("[+] Device profile: %s\n", device.Summary())
+	if profile != nil {
+		state := "reused"
+		if created {
+			state = "created"
+		}
+		fmt.Printf("[+] Account profile: %s %s | home egress %s | secrets %s\n",
+			state, profile.CreatedAt.Format("2006-01-02"), profile.HomeEgress, identity.ProtectionLabel())
+	}
+
+	// Report the honest session egress: a proxy region changes the IP the
+	// account appears from, so the audit should know which one is in play.
+	egressRegion, egressTimezone := "direct", device.Timezone
+	for _, target := range sweepTargets {
+		if target.ProxyURL != "" {
+			egressRegion = target.Code
+			if target.Timezone != "" {
+				egressTimezone = target.Timezone
+			}
+			break
+		}
+	}
+
+	issues := identity.Audit(profile, device, egressRegion, egressTimezone)
+	for _, note := range device.Notes {
+		fmt.Printf("    [i] %s\n", note)
+	}
+	for _, issue := range issues {
+		switch issue.Level {
+		case "error":
+			fmt.Printf("    [!] %s\n", issue.Message)
+		case "warn":
+			fmt.Printf("    [~] %s\n", issue.Message)
+		default:
+			fmt.Printf("    [i] %s\n", issue.Message)
+		}
+	}
+}
+
 func printBanner() {
 	fmt.Println("==================================================================")
 	fmt.Printf("   Discord Quest Phantom (Unified Dual-Engine) v%s\n", Version)
@@ -727,8 +851,9 @@ func runAPIRunnerLoop(ctx context.Context, cfg *config.Config, client *api.Clien
 					wg.Done()
 				}()
 
-				// Stagger start by 2.5s per concurrent lane to prevent API request bursts
-				laneDelay := time.Duration((idx-1)%concurrency) * 2500 * time.Millisecond
+				// Stagger start per concurrent lane, jittered, so the batch never
+				// looks like N requests fired by one clock.
+				laneDelay := pacing.Duration(time.Duration((idx-1)%concurrency)*2500*time.Millisecond, timingJitter)
 				select {
 				case <-ctx.Done():
 					return
@@ -867,7 +992,7 @@ func completeVideoAPI(ctx context.Context, client *api.Client, q scanner.Analyze
 		if timestamp >= secondsNeeded {
 			break
 		}
-		if !sleepWithContext(ctx, time.Second) {
+		if !sleepWithContext(ctx, pacing.Duration(time.Second, timingJitter)) {
 			return ctx.Err()
 		}
 	}
@@ -901,7 +1026,7 @@ func errorBackoff(consecutive int) time.Duration {
 	if d > maxErrorBackoff {
 		d = maxErrorBackoff
 	}
-	return d
+	return pacing.Duration(d, timingJitter)
 }
 
 func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.AnalyzedQuest) error {
@@ -926,6 +1051,21 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 		if time.Now().After(stallDeadline) {
 			fmt.Printf(i18n.M().ProgressStallAbort, q.Title, secondsDone, secondsNeeded)
 			return api.ErrQuestExpired
+		}
+
+		// A REST heartbeat claims a desktop game is running. While the owner is
+		// visibly playing something else, that claim is exactly the contradiction
+		// that gets accounts flagged, so wait instead of sending it.
+		if reason := desktopPresenceConflict(); reason != "" {
+			fmt.Printf("    [~] Holding %s: %s.\n", q.Title, reason)
+			for reason != "" {
+				if !pacing.Sleep(ctx, 20*time.Second, timingJitter) {
+					return ctx.Err()
+				}
+				reason = desktopPresenceConflict()
+			}
+			stallDeadline = time.Now().Add(progressStallTimeout)
+			fmt.Printf("    [i] Resuming %s.\n", q.Title)
 		}
 
 		resp, err := client.SendHeartbeat(ctx, q.ID, streamKey, false)
@@ -977,7 +1117,7 @@ func completeHeartbeatAPI(ctx context.Context, client *api.Client, q scanner.Ana
 			}
 		}
 
-		if !sleepWithContext(ctx, 20*time.Second) {
+		if !sleepWithContext(ctx, pacing.Duration(20*time.Second, timingJitter)) {
 			return ctx.Err()
 		}
 	}
@@ -1054,7 +1194,7 @@ func completeActivityAPI(ctx context.Context, client *api.Client, q scanner.Anal
 			}
 		}
 
-		if !sleepWithContext(ctx, 20*time.Second) {
+		if !sleepWithContext(ctx, pacing.Duration(20*time.Second, timingJitter)) {
 			return ctx.Err()
 		}
 	}
@@ -1096,211 +1236,320 @@ func runSpooferLoop(ctx context.Context, cfg *config.Config, apiClient *api.Clie
 		return nil
 	}
 
-	batchSize := cfg.Concurrency
-	if batchSize <= 0 {
-		batchSize = 5
+	// One machine, one game. Discord's client reports at most one detected game
+	// at a time, so launching several stubs in parallel tells Discord this
+	// account is playing several games simultaneously - something no real
+	// machine can do, and the exact pattern that produced "unusual activity"
+	// warnings. Desktop quests therefore run strictly one after another.
+	//
+	// The known-game table covers every desktop quest in the inventory, not
+	// just the eligible ones: a title the owner plays only needs to have had a
+	// quest once for us to recognise it and stay out of the way.
+	knownGames := make(map[string]string, len(quests))
+	for _, q := range quests {
+		if q.TaskType != "PLAY_ON_DESKTOP" {
+			continue
+		}
+		exe, title, err := spooferEngine.ResolveExecutable(q.AppID)
+		if err != nil || exe == "" {
+			continue
+		}
+		if title == "" {
+			title = q.Title
+		}
+		knownGames[presence.Lower(exe)] = title
 	}
 
-	for batchStart := 0; batchStart < len(eligible); batchStart += batchSize {
+	if cfg.PresenceGuard {
+		state := presence.Snapshot()
+		if state.Supported && !state.Discord {
+			fmt.Println("[!] Discord desktop is not running. Desktop quests only advance when the local client can see the game,")
+			fmt.Println("    so spoofing now would produce activity nobody reports. Start Discord and run again.")
+			fmt.Println("    (If this machine really has no Discord client, pass -presence-guard=false to skip the check.)")
+			return nil
+		}
+	}
+
+	for i := range eligible {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := runSpooferQuest(ctx, cfg, apiClient, spooferEngine, eligible[i], knownGames); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return err
+			}
+			fmt.Fprintf(os.Stderr, "[-] Spoofer: %v\n", err)
+		}
+	}
+	return nil
+}
+
+// acquireSpooferLock blocks while another instance already shows a game on
+// this machine. Two accounts spoofing two different games at once is a
+// machine-level contradiction no fingerprint can explain.
+func acquireSpooferLock(ctx context.Context) func() {
+	announced := false
+	for {
+		release, ok := presence.TryLock("DiscordQuestSpoofer")
+		if ok {
+			return release
+		}
+		if !announced {
+			fmt.Println("[~] Another Phantom instance is already showing a game on this machine.")
+			fmt.Println("    Waiting for it to finish; only one game can be visible at a time.")
+			announced = true
+		}
+		if !pacing.Sleep(ctx, 30*time.Second, timingJitter) {
+			return nil
+		}
+	}
+}
+
+// runSpooferQuest farms one desktop quest. It either launches a single stub or
+// piggybacks on the real, already-running game, and it stops pretending the
+// moment the owner starts playing something else.
+func runSpooferQuest(ctx context.Context, cfg *config.Config, apiClient *api.Client, spooferEngine spoofer.Spoofer, quest scanner.AnalyzedQuest, knownGames map[string]string) error {
+	exeName, gameTitle, err := spooferEngine.ResolveExecutable(quest.AppID)
+	if err != nil {
+		fmt.Printf(i18n.M().SpooferNoExe, quest.AppID, err)
+		return nil
+	}
+	if gameTitle == "" {
+		gameTitle = quest.Title
+	}
+	others := otherGames(knownGames, exeName)
+
+	var proc spoofer.GameProcess
+	var releaseLock func()
+	stubPID := 0
+	stopStub := func() {
+		if proc != nil {
+			_ = proc.Stop()
+			proc = nil
+			stubPID = 0
+		}
+		if releaseLock != nil {
+			releaseLock()
+			releaseLock = nil
+		}
+	}
+	launch := func() error {
+		// The machine-wide slot is taken only while a stub is actually visible,
+		// so two accounts on one PC can take turns instead of one starving.
+		if cfg.PresenceGuard {
+			releaseLock = acquireSpooferLock(ctx)
+			if releaseLock == nil {
+				return ctx.Err()
+			}
+		}
+		started, launchErr := spooferEngine.LaunchGame(ctx, quest.AppID, gameTitle, exeName)
+		if launchErr != nil {
+			if releaseLock != nil {
+				releaseLock()
+				releaseLock = nil
+			}
+			return launchErr
+		}
+		proc = started
+		stubPID = started.PID()
+		fmt.Printf(i18n.M().SpooferProcCreated, started.ExecutableName(), started.PID())
+		return nil
+	}
+	defer stopStub()
+
+	if cfg.PresenceGuard {
+		verdict, waitErr := waitForPresence(ctx, exeName, gameTitle, others, 0)
+		if waitErr != nil {
+			return waitErr
+		}
+		switch verdict.Kind {
+		case presence.NoDiscord:
+			fmt.Println("[!] Discord desktop closed; pausing desktop quests until it is back.")
+			return nil
+		case presence.WaitOtherGame:
+			fmt.Printf("    [~] Deferring %s: %s. Its own quest gets this turn instead.\n", gameTitle, verdict.Detail)
+			return nil
+		case presence.RealSession:
+			fmt.Printf("    [i] %s is already running for real - letting your own session count instead of starting a second copy.\n", gameTitle)
+		default:
+			if launchErr := launch(); launchErr != nil {
+				fmt.Printf(i18n.M().SpooferLaunchError, launchErr)
+				return nil
+			}
+		}
+	} else if launchErr := launch(); launchErr != nil {
+		fmt.Printf(i18n.M().SpooferLaunchError, launchErr)
+		return nil
+	}
+
+	region := quest.Region
+	if region == "" {
+		region = "LOCAL"
+	}
+
+	consecutiveFetchErrors := 0
+	noProgressPolls := 0
+	lastSec := quest.CurrentSec
+
+	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
+		case <-time.After(pacing.Duration(cfg.PollInterval, timingJitter)):
 		}
 
-		batchEnd := batchStart + batchSize
-		if batchEnd > len(eligible) {
-			batchEnd = len(eligible)
-		}
+		// Presence watch. A real game always wins: fighting it for Discord's
+		// single "Playing" slot is what makes the account look automated.
+		if cfg.PresenceGuard {
+			verdict := presence.Evaluate(presence.Snapshot(), presence.Target{
+				Exe:     exeName,
+				Title:   gameTitle,
+				StubPID: stubPID,
+			}, others)
 
-		type activeGame struct {
-			quest   scanner.AnalyzedQuest
-			proc    spoofer.GameProcess
-			done    bool
-			lastSec float64
-		}
-
-		var activeGames []*activeGame
-		consecutiveFetchErrors := 0
-
-		fmt.Printf("\n[*] Starting Spoofer Batch: Concurrently launching %d game(s)...\n", batchEnd-batchStart)
-		for i := batchStart; i < batchEnd; i++ {
-			eq := eligible[i]
-			exeName, gameTitle, err := spooferEngine.ResolveExecutable(eq.AppID)
-			if err != nil {
-				fmt.Printf(i18n.M().SpooferNoExe, eq.AppID, err)
-				continue
+			switch verdict.Kind {
+			case presence.NoDiscord:
+				stopStub()
+				fmt.Println("[!] Discord desktop closed; pausing desktop quests until it is back.")
+				return nil
+			case presence.Ready:
+				// The real session ended while we were riding it; take over with
+				// a stub so the quest keeps moving.
+				if proc == nil {
+					if launchErr := launch(); launchErr != nil {
+						fmt.Printf(i18n.M().SpooferLaunchError, launchErr)
+						return nil
+					}
+				}
+			case presence.WaitOtherGame:
+				stopStub()
+				fmt.Printf("    [~] Pausing %s: %s. Not competing with your own game.\n", gameTitle, verdict.Detail)
+				return nil
+			case presence.WaitFullscreen:
+				stopStub()
+				fmt.Printf("    [~] Pausing %s: %s.\n", gameTitle, verdict.Detail)
+				ready, waitErr := waitForPresence(ctx, exeName, gameTitle, others, 0)
+				if waitErr != nil {
+					return waitErr
+				}
+				if ready.Kind == presence.NoDiscord || ready.Kind == presence.WaitOtherGame {
+					return nil
+				}
+				noProgressPolls = 0
+				if ready.Kind != presence.RealSession {
+					if launchErr := launch(); launchErr != nil {
+						fmt.Printf(i18n.M().SpooferLaunchError, launchErr)
+						return nil
+					}
+				}
 			}
-			if gameTitle == "" {
-				gameTitle = eq.Title
-			}
-			proc, err := spooferEngine.LaunchGame(ctx, eq.AppID, gameTitle, exeName)
-			if err != nil {
-				fmt.Printf(i18n.M().SpooferLaunchError, err)
-				continue
-			}
-			fmt.Printf(i18n.M().SpooferProcCreated, proc.ExecutableName(), proc.PID())
-			activeGames = append(activeGames, &activeGame{quest: eq, proc: proc, lastSec: eq.CurrentSec})
 		}
 
-		if len(activeGames) == 0 {
+		rawQuests, fetchErr := apiClient.FetchQuests(api.WithRegionInfo(ctx, regionInfoFor(region)))
+		if fetchErr != nil {
+			if errors.Is(fetchErr, api.ErrQuestExpired) {
+				return nil
+			}
+			// Never spin on a broken connection without a bound.
+			consecutiveFetchErrors++
+			if consecutiveFetchErrors == 1 || consecutiveFetchErrors%10 == 0 {
+				fmt.Printf(i18n.M().SpooferFetchWarning, fetchErr)
+			}
+			if consecutiveFetchErrors >= maxConsecutiveErrors {
+				fmt.Printf(i18n.M().ProgressErrorAbort, "spoofer", consecutiveFetchErrors, fetchErr)
+				return nil
+			}
 			continue
 		}
+		consecutiveFetchErrors = 0
 
-		// Ensure cleanup of any running processes in this batch
-		cleanup := func() {
-			for _, ag := range activeGames {
-				if ag.proc != nil && !ag.done {
-					_ = ag.proc.Stop()
-					ag.done = true
-				}
-			}
-		}
-
-		// Poll loop for active batch
-		noProgressPolls := 0
-		for {
-			select {
-			case <-ctx.Done():
-				cleanup()
-				return ctx.Err()
-			case <-time.After(cfg.PollInterval):
-			}
-
-			// A proxy-discovered quest does not exist in the direct inventory, so
-			// poll every egress region used by this batch and union the results.
-			fetchedRegions := make(map[string]bool, len(activeGames))
-			regionFetchFailed := make(map[string]bool, len(activeGames))
-			rawQuests := make([]api.Quest, 0, len(activeGames))
-			seenQuest := make(map[string]bool, len(activeGames))
-			var regionFetchErr error
-			for _, ag := range activeGames {
-				if ag.done {
-					continue
-				}
-				region := ag.quest.Region
-				if region == "" {
-					region = "LOCAL"
-				}
-				if fetchedRegions[region] {
-					continue
-				}
-				fetchedRegions[region] = true
-				regionQuests, fetchErr := apiClient.FetchQuests(api.WithRegionInfo(ctx, regionInfoFor(region)))
-				if fetchErr != nil {
-					regionFetchFailed[region] = true
-					regionFetchErr = fetchErr
-					continue
-				}
-				for _, quest := range regionQuests {
-					if quest.ID == "" || seenQuest[quest.ID] {
-						continue
-					}
-					seenQuest[quest.ID] = true
-					if quest.DiscoveredRegion == "" {
-						quest.DiscoveredRegion = region
-					}
-					rawQuests = append(rawQuests, quest)
-				}
-			}
-			if len(rawQuests) == 0 && regionFetchErr != nil {
-				if errors.Is(regionFetchErr, api.ErrQuestExpired) {
-					cleanup()
-					return regionFetchErr
-				}
-				// Never spin on a broken connection without a bound.
-				consecutiveFetchErrors++
-				if consecutiveFetchErrors == 1 || consecutiveFetchErrors%10 == 0 {
-					fmt.Printf(i18n.M().SpooferFetchWarning, regionFetchErr)
-				}
-				if consecutiveFetchErrors >= maxConsecutiveErrors {
-					fmt.Printf(i18n.M().ProgressErrorAbort, "spoofer", consecutiveFetchErrors, regionFetchErr)
-					cleanup()
-					return regionFetchErr
-				}
-				continue
-			}
-			consecutiveFetchErrors = 0
-
-			allBatchDone := true
-			progressed := false
-			for _, ag := range activeGames {
-				if ag.done {
-					continue
-				}
-
-				var curQ *api.Quest
-				for i := range rawQuests {
-					if rawQuests[i].ID == ag.quest.ID {
-						curQ = &rawQuests[i]
-						break
-					}
-				}
-				if curQ == nil {
-					region := ag.quest.Region
-					if region == "" {
-						region = "LOCAL"
-					}
-					if regionFetchFailed[region] {
-						// We could not read that region's inventory, so the quest is
-						// not necessarily gone. Keep the game process alive.
-						if noProgressPolls == 0 {
-							fmt.Printf("    [!] Region [%s] inventory temporarily unavailable; keeping quest '%s' (%s) alive.\n", region, ag.quest.Title, ag.quest.ID)
-						}
-						allBatchDone = false
-						continue
-					}
-					// Quest vanished from the inventory (ended / removed).
-					fmt.Printf(i18n.M().QuestExpiredSkip, ag.quest.Title, ag.quest.ID)
-					_ = ag.proc.Stop()
-					ag.done = true
-					continue
-				}
-
-				analyzed := scanner.AnalyzeQuest(*curQ)
-				fmt.Printf("    [🎮 %s] Progress: %.0fs / %ds (State: %s)\n", analyzed.Title, analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
-
-				// An expired campaign must terminate the game immediately,
-				// otherwise this poll loop would run forever.
-				if analyzed.IsExpired || analyzed.State == scanner.StateExpired {
-					fmt.Printf(i18n.M().QuestExpiredSkip, analyzed.Title, analyzed.ID)
-					_ = ag.proc.Stop()
-					ag.done = true
-					continue
-				}
-
-				if analyzed.CurrentSec > ag.lastSec {
-					ag.lastSec = analyzed.CurrentSec
-					progressed = true
-				}
-
-				if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed || (analyzed.TargetSec > 0 && analyzed.CurrentSec >= float64(analyzed.TargetSec)) {
-					fmt.Printf(i18n.M().SpooferCompleted, analyzed.Title)
-					_ = ag.proc.Stop()
-					ag.done = true
-				} else {
-					allBatchDone = false
-				}
-			}
-
-			if allBatchDone {
+		var current *api.Quest
+		for i := range rawQuests {
+			if rawQuests[i].ID == quest.ID {
+				current = &rawQuests[i]
 				break
 			}
+		}
+		if current == nil {
+			// Quest vanished from the inventory (ended / removed).
+			fmt.Printf(i18n.M().QuestExpiredSkip, quest.Title, quest.ID)
+			return nil
+		}
 
-			// Guard against a quest that reports "not finished" but never
-			// advances (Discord stopped counting it hours ago).
-			if progressed {
-				noProgressPolls = 0
-			} else {
-				noProgressPolls++
-				if maxIdlePolls := int(progressStallTimeout / cfg.PollInterval); cfg.PollInterval > 0 && noProgressPolls >= maxIdlePolls {
-					fmt.Printf(i18n.M().ProgressStallAbort, "spoofer", 0.0, 0.0)
-					cleanup()
-					return api.ErrQuestExpired
+		analyzed := scanner.AnalyzeQuest(*current)
+		fmt.Printf("    [ðŸŽ® %s] Progress: %.0fs / %ds (State: %s)\n", analyzed.Title, analyzed.CurrentSec, analyzed.TargetSec, analyzed.State)
+
+		if analyzed.IsExpired || analyzed.State == scanner.StateExpired {
+			fmt.Printf(i18n.M().QuestExpiredSkip, analyzed.Title, analyzed.ID)
+			return nil
+		}
+
+		if analyzed.State == scanner.StateCompleted || analyzed.State == scanner.StateClaimed ||
+			(analyzed.TargetSec > 0 && analyzed.CurrentSec >= float64(analyzed.TargetSec)) {
+			fmt.Printf(i18n.M().SpooferCompleted, analyzed.Title)
+			return nil
+		}
+
+		// A quest that reports "not finished" but never advances means Discord
+		// stopped counting it. Give up on this pass instead of holding a process
+		// for hours.
+		if analyzed.CurrentSec > lastSec {
+			lastSec = analyzed.CurrentSec
+			noProgressPolls = 0
+		} else {
+			noProgressPolls++
+			if cfg.PollInterval > 0 {
+				if maxIdle := int(progressStallTimeout / cfg.PollInterval); maxIdle > 0 && noProgressPolls >= maxIdle {
+					fmt.Printf(i18n.M().ProgressStallAbort, "spoofer", analyzed.CurrentSec, float64(analyzed.TargetSec))
+					return nil
 				}
 			}
 		}
 	}
+}
 
-	return nil
+// otherGames maps the other eligible quests' executables to their titles.
+func otherGames(known map[string]string, targetExe string) map[string]string {
+	target := presence.Lower(targetExe)
+	others := make(map[string]string, len(known))
+	for exe, title := range known {
+		if exe != target {
+			others[exe] = title
+		}
+	}
+	return others
+}
+
+// waitForPresence blocks until the machine can show title without lying. A
+// different game that is already running defers the quest (its own turn comes
+// next); a full-screen app we cannot name means "wait it out".
+func waitForPresence(ctx context.Context, exe, title string, others map[string]string, stubPID int) (presence.Verdict, error) {
+	var lastKind presence.Kind
+	var lastNotice time.Time
+
+	for {
+		verdict := presence.Evaluate(presence.Snapshot(), presence.Target{
+			Exe:     exe,
+			Title:   title,
+			StubPID: stubPID,
+		}, others)
+
+		switch verdict.Kind {
+		case presence.Ready, presence.RealSession, presence.NoDiscord:
+			return verdict, nil
+		case presence.WaitOtherGame:
+			if stubPID == 0 {
+				return verdict, nil
+			}
+		}
+
+		if verdict.Kind != lastKind || time.Since(lastNotice) >= 5*time.Minute {
+			fmt.Printf("    [~] Holding %s: %s. Waiting for the machine to be free...\n", title, verdict.Detail)
+			lastKind = verdict.Kind
+			lastNotice = time.Now()
+		}
+		if !pacing.Sleep(ctx, 20*time.Second, timingJitter) {
+			return verdict, ctx.Err()
+		}
+	}
 }

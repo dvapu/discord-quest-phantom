@@ -11,14 +11,15 @@ import (
 )
 
 func TestRegionInfoDrivesLocaleHeaders(t *testing.T) {
-	var gotLocale, gotTimezone, superPropsLocale string
+	var gotLocale, gotTimezone, clientLocale, systemLocale string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotLocale = r.Header.Get("X-Discord-Locale")
 		gotTimezone = r.Header.Get("X-Discord-Timezone")
 		raw, _ := base64.StdEncoding.DecodeString(r.Header.Get("X-Super-Properties"))
 		var props map[string]interface{}
 		if err := json.Unmarshal(raw, &props); err == nil {
-			superPropsLocale, _ = props["system_locale"].(string)
+			clientLocale, _ = props["client_locale"].(string)
+			systemLocale, _ = props["system_locale"].(string)
 		}
 		_, _ = w.Write([]byte(`{"quests":[]}`))
 	}))
@@ -36,8 +37,13 @@ func TestRegionInfoDrivesLocaleHeaders(t *testing.T) {
 	if gotTimezone != "Asia/Tokyo" {
 		t.Fatalf("expected X-Discord-Timezone Asia/Tokyo, got %q", gotTimezone)
 	}
-	if superPropsLocale != "ja" {
-		t.Fatalf("expected super properties system_locale ja, got %q", superPropsLocale)
+	if clientLocale != "ja" {
+		t.Fatalf("expected super properties client_locale ja, got %q", clientLocale)
+	}
+	// The OS locale is a property of the device: using a different egress must
+	// never claim the machine itself switched language.
+	if systemLocale != "en-US" {
+		t.Fatalf("expected super properties system_locale to stay en-US, got %q", systemLocale)
 	}
 }
 

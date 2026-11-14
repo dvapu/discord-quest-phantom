@@ -38,6 +38,7 @@ type UserMe struct {
 	GlobalName  *string `json:"global_name"`
 	MFAEnabled  bool    `json:"mfa_enabled"`
 	Email       *string `json:"email"`
+	Locale      string  `json:"locale"` // account UI locale, authoritative for X-Discord-Locale
 	Flags       int64   `json:"flags"`
 	PublicFlags int64   `json:"public_flags"`
 	PremiumType int     `json:"premium_type"` // 0: None, 1: Nitro Classic, 2: Nitro, 3: Nitro Basic

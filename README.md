@@ -188,7 +188,7 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-locale-sweep` | `off` | Locale header sweep for experiments: `off`, `trio`, `all` (does not change quest eligibility) |
 | `-sweep-pacing` | `3s` | Minimum delay between quest discovery requests; auto-raised when Discord answers HTTP 429 |
 | `-sweep-attempts` | `3` | Attempts per sweep target before it is reported as failed |
-| `-concurrency` | `5` | Maximum concurrent quests running in parallel (1–5) |
+| `-concurrency` | `5` | Maximum concurrent video/API quests (desktop-game quests always run one at a time) |
 | `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |
 | `-poll` | `60s` | Polling interval between quest checks when running in daemon mode (e.g. `15m`, `30m`) |
 | `-portal` | `true` | Enable local LAN captcha web portal (`false` for completely silent headless background run) |
@@ -197,6 +197,11 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-lang` | `auto` | Language override: `auto`, `en`, `vi` |
 | `-dry-run` | `false` | Discover and display active quests without taking any actions |
 | `-token` | `""` | Provide Discord token directly via command-line argument |
+| `-fingerprint` | `auto` | Device identity source: `auto` (derive OS build, Discord client build, locale and timezone from this machine) or `legacy` (fixed built-in values) |
+| `-profile-store` | `true` | Keep one stable, DPAPI-sealed device profile per account under the cache directory |
+| `-presence-guard` | `true` | Pause desktop-game spoofing while you are actually playing another game or using a full-screen app |
+| `-jitter` | `0.15` | Relative jitter applied to every delay (bell-shaped, ±15% by default; `0` disables it) |
+| `-cache-dir` | per-user | Custom cache directory for stubs, the quest snapshot, profiles and the token vault (default `%LOCALAPPDATA%\DiscordQuestCompleter`) |
 | `-debug` | `false` | Verbose output, including expired quests in the inventory table |
 | `-keep-open` | `true` | Wait for Enter before exiting (prevents the window from closing) |
 
@@ -259,12 +264,20 @@ What the sweep guarantees:
 ## 🛡️ Anti-Ban Security Analysis
 
 * **Never Auto-Claims Rewards**: Phantom **NEVER** calls the claim reward endpoint. It strictly stops at 100% progress so you can open Discord and claim your rewards manually, guaranteeing maximum safety.
-* **Realistic X-Super-Properties**: Base64 encoded client fingerprint matching genuine Discord Desktop x64 builds (`os`, `browser`, `os_version`, `client_version`).
-* **Dynamic CDN Build Number**: Dynamically scrapes the active `client_build_number` from Discord CDN at startup. Never sends outdated build tags.
-* **Randomized Jitter**: Randomized interval delays between heartbeats and video progress events prevent pattern matching.
+* **One game at a time, and your real game wins**: desktop quests are strictly serial instead of launching several stubs in parallel, the tool pauses while you are in a full-screen app or another quest game is running, and if the quest's own game is already open it lets your real session count instead of starting a second copy. A second instance of Phantom waits for the first, so one machine never shows two games at once. In the default REST mode (no stub), desktop heartbeats are held while a full-screen game is active on this machine and resume when the screen is free. Use `-spoofer` whenever Discord runs here: it makes your local client the source of truth instead of a heartbeat that can disagree with it. This is the fix for the "playing another game while the tool farms a different quest" warning.
+* **One pinned device identity per account**: OS build (read from the Windows registry), Discord client version, Electron/Chromium versions, `native_build_number`, system locale and timezone all come from a single source (`pkg/api/fingerprint.go`) and are re-derived only when the machine itself changes. The user agent is rebuilt from those values, never typed separately, so `discord/…`, `Chrome/…` and `Electron/…` can never disagree. Set `-fingerprint legacy` to fall back to the old fixed values.
+* **Consistent, verified client builds**: the version catalog only pairs values that ship together in one release (client version + Electron + Chromium + native build). An installed Discord build that is not indexed yet is reported and the newest consistent entry is used instead of inventing a mix.
+* **Per-account profile store**: fingerprint, locale and device tag are persisted per Discord account under `<cache>/profiles/`, sealed with Windows DPAPI (`DQC1` format) and bound to the account id, so a profile cannot be swapped between accounts or read by another Windows user.
+* **Stable system locale, honest client locale**: `system_locale` stays the OS locale (a real machine cannot change it between requests) while `client_locale` / `X-Discord-Locale` / `Accept-Language` follow the account and the sweep target.
+* **Dynamic CDN Build Number**: `client_build_number` still comes from the active published build at startup, because quest endpoints gate features on it. `native_build_number` stays catalog-pinned — the two move independently in real installations too.
+* **Jittered, not clockwork**: a bell-shaped ±15% jitter (`-jitter`) is applied to heartbeats, video progress, enrollment spacing, retry backoff, per-lane start staggering and the daemon poll interval. Averages are unchanged, `-jitter 0` disables it for debugging.
+* **Encrypted token vault**: the token can be sealed with DPAPI in `<cache>/token.bin`. A plaintext `.token` is migrated once and **left in place** for you to delete yourself; on platforms without a per-user secret store nothing is written.
 * **Bounded, paced discovery**: `/quests/@me` requests are serialized, `Retry-After` aware and never fan out per proxy, so the account stays far away from rate-limit escalation.
 * **Quest gate awareness**: `quest_access_suspended_until` / `quest_enrollment_blocked_until` are read from the payload; the tool halts enrolling (or all quest traffic) until the gate expires instead of hammering a flagged account.
-* **Per-region consistency**: every quest action is sent through the proxy that discovered the quest, with aligned locale/timezone headers and the current `client_build_number`.
+* **Per-region consistency**: every quest action is sent through the proxy that discovered the quest, with aligned locale/timezone headers and the current `client_build_number`. Phantom warns when several proxy egresses are configured, because one token appearing from many countries in a single session is the strongest signal it can emit.
+* **Install-shaped process emulation**: the spoofer launches a hard-linked stub from `<cache>\stubs\<Game Name>\`, with the game folder as working directory, a per-engine window class, a reserved 256–512 MB working set and a small idle CPU load.
+
+The remaining, unaddressed surfaces (Go TLS/JA3-JA4 mismatch, no gateway session, synthetic progress, IP reputation) are documented in [`docs/ANTI_PROFILING.md`](docs/ANTI_PROFILING.md).
 
 ---
 
@@ -280,12 +293,16 @@ discord-quest-phantom/
 │   ├── captcha/                # Local LAN Captcha Web Portal (auto port resolution)
 │   ├── config/                 # Token resolution & CLI parsing (interactive prompt)
 │   ├── i18n/                   # Zero-dependency bilingual translation catalogs (EN, VI)
+│   ├── identity/               # Device fingerprint, version catalog, DPAPI profile store
 │   ├── inventory/              # Last-known-good quest snapshot (never-miss fallback)
+│   ├── pacing/                 # Bell-shaped timing jitter shared by every delay
+│   ├── presence/               # Real-game / full-screen detection that pauses the spoofer
 │   ├── scanner/                # Quest classification, lifecycle coordinator & expiry filter
 │   ├── spoofer/                # Win32 GUI message pump & Linux process emulation
 │   └── updater/                # GitHub release checker & update notification engine
 ├── docs/
 │   ├── translations/           # Multilingual documentation (VI, ZH, KO, JA, HI)
+│   ├── ANTI_PROFILING.md       # Device identity, presence guard and residual risks
 │   ├── ARCHITECTURE.md         # In-depth architectural review & risk matrix
 │   └── QUICKSTART.txt          # Minimal setup guide
 ├── scripts/

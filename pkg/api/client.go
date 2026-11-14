@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,39 +21,20 @@ type Client struct {
 	transport   *RegionTransport
 	apiBase     string
 	token       string
-	userAgent   string
 	timezone    string
 	buildNumber int
 	locale      string
+	fp          Fingerprint
 	stateMu     sync.RWMutex
+	fpMu        sync.RWMutex
 	propsMu     sync.Mutex
 	propsCache  map[string]string
 }
 
-// BuildSuperPropertiesWithLocale produces a base64-encoded client fingerprint JSON string for a specific locale.
+// BuildSuperPropertiesWithLocale produces a base64-encoded client fingerprint
+// JSON string for a specific locale using the default device fingerprint.
 func BuildSuperPropertiesWithLocale(buildNumber int, locale string) string {
-	if locale == "" {
-		locale = "en-US"
-	}
-	props := map[string]interface{}{
-		"os":                  "Windows",
-		"browser":             "Discord Client",
-		"release_channel":     "stable",
-		"client_version":      "1.0.9175",
-		"os_version":          "10.0.26100",
-		"os_arch":             "x64",
-		"app_arch":            "x64",
-		"system_locale":       locale,
-		"client_locale":       locale,
-		"browser_user_agent":  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9175 Chrome/128.0.6613.186 Electron/32.2.7 Safari/537.36",
-		"browser_version":     "32.2.7",
-		"client_build_number": buildNumber,
-		"native_build_number": 59498,
-		"client_event_source": nil,
-	}
-
-	raw, _ := json.Marshal(props)
-	return base64.StdEncoding.EncodeToString(raw)
+	return DefaultFingerprint().SuperProperties(buildNumber, locale)
 }
 
 // BuildSuperProperties produces a base64-encoded client fingerprint JSON string.
@@ -133,17 +113,39 @@ func NewClient(token string, buildNumber int) *Client {
 		buildNumber = 626571
 	}
 	regionTransport := NewRegionTransport()
+	fp := DefaultFingerprint()
 	return &Client{
 		httpClient:  &http.Client{Timeout: 20 * time.Second, Transport: regionTransport},
 		transport:   regionTransport,
 		apiBase:     "https://discord.com/api/v9",
 		token:       token,
-		userAgent:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) discord/1.0.9175 Chrome/128.0.6613.186 Electron/32.2.7 Safari/537.36",
 		timezone:    "America/New_York",
 		locale:      "en-US",
+		fp:          fp,
 		buildNumber: buildNumber,
 		propsCache:  make(map[string]string),
 	}
+}
+
+// SetFingerprint replaces the device identity used by every authenticated
+// request. The user agent, X-Super-Properties and all derived fields are
+// re-derived together so they can never disagree.
+func (c *Client) SetFingerprint(fp Fingerprint) {
+	fp = fp.Normalize()
+	c.fpMu.Lock()
+	c.fp = fp
+	c.fpMu.Unlock()
+
+	c.propsMu.Lock()
+	c.propsCache = make(map[string]string)
+	c.propsMu.Unlock()
+}
+
+// Fingerprint returns the device identity currently in use.
+func (c *Client) Fingerprint() Fingerprint {
+	c.fpMu.RLock()
+	defer c.fpMu.RUnlock()
+	return c.fp
 }
 
 // SetRegionProxy registers a regional proxy for a sweep target code. Every
@@ -236,23 +238,50 @@ func (c *Client) superPropsFor(locale string) string {
 	if cached, ok := c.propsCache[locale]; ok {
 		return cached
 	}
-	props := BuildSuperPropertiesWithLocale(c.buildNumber, locale)
+	c.fpMu.RLock()
+	fp := c.fp
+	c.fpMu.RUnlock()
+	props := fp.SuperProperties(c.buildNumber, locale)
 	c.propsCache[locale] = props
 	return props
 }
 
 func (c *Client) setHeaders(req *http.Request) {
 	locale, timezone := c.requestSettings(req.Context())
+	fp := c.Fingerprint()
 	req.Header.Set("Authorization", c.token)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("User-Agent", fp.UserAgent())
 	req.Header.Set("X-Super-Properties", c.superPropsFor(locale))
 	req.Header.Set("X-Discord-Locale", locale)
 	req.Header.Set("X-Discord-Timezone", timezone)
-	req.Header.Set("Accept-Language", locale+",en;q=0.9")
+	req.Header.Set("Accept-Language", acceptLanguageFor(locale))
 	req.Header.Set("Origin", "https://discord.com")
 	req.Header.Set("Referer", "https://discord.com/channels/@me")
+}
+
+// acceptLanguageFor mirrors Chromium's language negotiation: the exact locale
+// first, then the base language, then English. A bare "ja" with no fallback is
+// not something the desktop client ever sends.
+func acceptLanguageFor(locale string) string {
+	if locale == "" {
+		return "en-US,en;q=0.9"
+	}
+	base := locale
+	if idx := strings.IndexAny(locale, "-_"); idx > 0 {
+		base = locale[:idx]
+	} else {
+		// Chromium expands a language-only locale to a regional default.
+		if locale != "en" {
+			return locale + ",en-US;q=0.9,en;q=0.8"
+		}
+		return "en-US,en;q=0.9"
+	}
+	if base == "en" {
+		return locale + ",en;q=0.9"
+	}
+	return locale + "," + base + ";q=0.9,en;q=0.8"
 }
 
 // parseRetryAfter parses the retry duration from a 429 response.
