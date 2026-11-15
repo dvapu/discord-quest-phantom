@@ -193,7 +193,7 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 
 | Flag | Default | Description |
 |---|---|---|
-| `-max-badge` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
+| `-max-badge` / `-badges` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
 | `-hypesquad` | `""` | HypeSquad House badge: `bravery` (1), `brilliance` (2), `balance` (3), or `leave` (0) |
 | `-auto-accept` / `-auto-enroll` | `true` | Auto-enroll in eligible quests (`false` to only discover and display them) |
 | `-quest-id` | `""` | Run only the quest with this ID |
@@ -206,6 +206,7 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-sweep-attempts` | `3` | Attempts per sweep target before it is reported as failed |
 | `-concurrency` | `5` | Maximum concurrent video/API quests (desktop-game quests always run one at a time) |
 | `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |
+| `-auto-accept` / `-auto-enroll` | `true` | Auto-enroll in eligible quests (`false` to only discover and display them) |
 | `-poll` | `60s` | Polling interval between quest checks when running in daemon mode (e.g. `15m`, `30m`) |
 | `-portal` | `true` | Enable local LAN captcha web portal (`false` for completely silent headless background run) |
 | `-portal-port` | `8080` | Port for captcha web portal (auto-increments if port is busy) |
@@ -213,6 +214,8 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-lang` | `auto` | Language override: `auto`, `en`, `vi` |
 | `-dry-run` | `false` | Discover and display active quests without taking any actions |
 | `-token` | `""` | Provide Discord token directly via command-line argument |
+| `-quest-id` | `""` | Run only the quest with this ID |
+| `-duration` | `0` | Cap the spoofing time per quest (`15m`, `30s`; `0` = run until the requirement is met) |
 | `-fingerprint` | `auto` | Device identity source: `auto` (derive OS build, Discord client build, locale and timezone from this machine) or `legacy` (fixed built-in values) |
 | `-profile-store` | `true` | Keep one stable, DPAPI-sealed device profile per account under the cache directory |
 | `-presence-guard` | `true` | Pause desktop-game spoofing while you are actually playing another game or using a full-screen app |
