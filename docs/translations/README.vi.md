@@ -55,34 +55,46 @@
 
 ## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.2.0
 
-1. **🎖️ Tối Ưu Huy Hiệu Profile & Tích Hợp HypeSquad (`-max-badge`, `-hypesquad`)**:
+1. **🪪 Danh tính thiết bị nhất quán cho từng tài khoản (`-fingerprint`, `-profile-store`)**:
+   - OS build, bản Discord client / Electron / Chromium / native build, locale hệ thống và timezone đều lấy từ một nguồn duy nhất và được ghim theo tài khoản, thay vì dùng chung một fingerprint cứng cho mọi máy.
+   - `system_locale` giữ đúng locale của hệ điều hành; `client_locale` / `X-Discord-Locale` theo tài khoản và vùng quét.
+   - Hồ sơ và kho token được mã hoá bằng DPAPI trên Windows; file `.token` plaintext chỉ được chuyển vào vault một lần và vẫn để nguyên để bạn tự xoá.
+   - Xem [`docs/ANTI_PROFILING.md`](https://github.com/dvapu/discord-quest-phantom/blob/main/docs/ANTI_PROFILING.md) để biết thiết kế và giới hạn còn lại.
+2. **🛡️ Presence guard (`-presence-guard`, mặc định bật)**:
+   - Nhiệm vụ game PC chạy **tuần tự**, không bao giờ mở nhiều stub cùng lúc.
+   - Stub tạm dừng khi bạn đang chơi một game khác hoặc có app full-screen; nếu đúng game của nhiệm vụ đang chạy thật, tool để session thật tính tiến độ thay vì mở bản sao.
+   - Mutex chống 2 instance cùng hiển thị game trên một máy.
+   - Heartbeat REST của nhiệm vụ game tạm dừng khi có full-screen trên máy đang chạy Discord.
+3. **⏱️ Jitter thời gian (`-jitter`, mặc định 0.15)**: nhiễu hình chuông ±15% cho heartbeat, retry, khoảng cách auto-enroll và poll.
+4. **🎖️ Tối Ưu Huy Hiệu Profile & Tích Hợp HypeSquad (`-max-badge`, `-hypesquad`)**:
    - **Tự động nhận diện & hiển thị huy hiệu**: Đọc bitmask public_flags của tài khoản và hiển thị đầy đủ huy hiệu (`[🛡️ HypeSquad Bravery]`, `[🛠️ Active Developer]`, `[🚀 Nitro]`, v.v.).
    - **Mở khóa Huy hiệu HypeSquad tức thì**: Gọi trực tiếp Discord API (`POST /api/v9/hypesquad/online`) để tham gia hoặc đổi nhà HypeSquad (`bravery` / `1`, `brilliance` / `2`, `balance` / `3`, hoặc rời `leave` / `0`).
    - **Tự động Max Badge mặc định**: Khi chạy tool, nếu tài khoản chưa có huy hiệu HypeSquad, tool tự động nhận huy hiệu House of Bravery để bạn có trọn bộ huy hiệu đẹp nhất cùng quà nhiệm vụ!
    - **Bảng tổng kết cuối phiên**: Hiển thị bảng tổng kết huy hiệu hồ sơ và số lượng quest đã hoàn thành.
-2. **🩹 File `run.cmd` / `setup_token.cmd` đã chạy được thật sự**:
+5. **🩹 File `run.cmd` / `setup_token.cmd` đã chạy được thật sự**:
    - Sửa triệt để lỗi "cửa sổ console chớp rồi tắt" do file batch lưu bằng chuẩn Unix (LF) thay vì Windows (CRLF).
    - `.gitattributes` giờ khóa cứng các file `.cmd` sang CRLF nguyên bản, và CI sẽ **fail build** nếu có dấu LF đơn lẻ lọt vào, nên lỗi này không thể tái diễn.
    - Máy nào tải về cũng chạy ngay: file `discord-quest-phantom.exe` đã đóng gói sẵn trong ZIP, **không cần cài Go hay Python**.
    - Khi có lỗi, chương trình dừng lại và in rõ mã lỗi kèm gợi ý, cửa sổ không tự đóng nữa.
-2. **🧹 Hết tràn màn hình khi quest hết hạn**:
+6. **🧹 Hết tràn màn hình khi quest hết hạn**:
    - Các quest đã kết thúc trong lúc bạn không mở tool (lỗi `HTTP 404 / 410 / 403 / 422`) được nhận diện và bỏ qua chỉ với **một dòng** thay vì thử lại vô tận.
    - Vòng lặp tiến độ tự dừng sau 5 lỗi liên tiếp hoặc 3 phút không được Discord chấp nhận tiến độ, có giãn cách chờ hợp lý.
    - Bảng danh sách quest gom các quest hết hạn thành **một dòng tổng kết** (dùng `-debug` để xem đầy đủ).
    - Chế độ daemon không còn in lại y nguyên bảng cũ ở mỗi chu kỳ quét.
-3. **🌍 Quét Quest Theo Vùng IP + Chống Bỏ Lỡ Nhiệm Vụ (`-region`, `-proxy`, `-proxy-file`)** — *cơ chế đã được sửa lại*:
+7. **🌍 Quét Quest Theo Vùng IP + Chống Bỏ Lỡ Nhiệm Vụ (`-region`, `-proxy`, `-proxy-file`)** — *cơ chế đã được sửa lại*:
    - Discord quyết định **bạn có thấy nhiệm vụ hay không dựa trên IP gửi request** (quốc gia Discord nhìn thấy), không phải theo `client_locale` / `system_locale`. Đo thực tế trên một tài khoản: 22 kiểu header locale khác nhau trả về **cùng một danh sách 61 quest** (98 quest bị loại, ID giống hệt nhau), trong khi người dùng VPN thấy rõ quest riêng của quốc gia khác. Header locale chỉ đổi ngôn ngữ văn bản.
    - Phantom quét **IP hiện tại trước**, sau đó tới từng proxy vùng bạn khai báo, hợp nhất kết quả theo ID quest và **gửi mọi request nhận/cày tiến độ của quest đó qua đúng proxy đã tìm ra nó** (metadata traffic_metadata_sealed gắn với vùng đó).
    - Mỗi vùng được báo `OK`/`ERR` kèm số quest, số quest bị loại và thời gian phản hồi. Vùng lỗi được thử lại một lượt sau khi các vùng khỏe mạnh xong; vùng vẫn lỗi sẽ được in thành cảnh báo thay vì bỏ qua âm thầm.
    - Request được xếp hàng tuần tự và tôn trọng `Retry-After`: Discord chỉ cho phép burst 2–3 request vào `/quests/@me` rồi trả `429`. Bản lưu inventory gần nhất giúp chống rỗng danh sách khi mạng chập chờn, còn `quest_access_suspended_until` / `quest_enrollment_blocked_until` khiến tool dừng lại trước khi bị phạt thêm.
    - `-locale-sweep trio|all` vẫn còn cho mục đích thử nghiệm, mặc định tắt và **không** thay đổi điều kiện nhận quest.
-4. **⚡ Chạy Song Song 2–5 Game/Nhiệm Vụ (`-concurrency 5`)**:
-   - Thay vì chạy tuần tự tốn 15p x 5 = 75 phút, Phantom hỗ trợ **xử lý song song tối đa 5 quest cùng một lúc** với luồng heartbeat độc lập. Hoàn thành 5 game chỉ vỏn vẹn trong **15 phút**!
-5. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
+8. **⚡ Chạy Song Song Nhiều Nhiệm Vụ (`-concurrency 5`)**:
+   - Tối đa 5 nhiệm vụ **video / API** chạy cùng lúc, mỗi luồng heartbeat độc lập, thời điểm bắt đầu có jitter.
+- Nhiệm vụ **game PC là ngoại lệ**: luôn chạy tuần tự từng game một, vì client thật chỉ báo cáo một game tại một thời điểm.
+9. **📱 Cổng Giải Captcha Cục Bộ Qua WiFi/LAN (`-portal`)**:
    - Khi chạy trên server Linux/Armbian 24/7 (`192.168.1.200`) qua SSH không có màn hình:
    - Nếu Discord bắt xác minh người thật, Phantom tự mở cổng web nội bộ `http://<IP_MAY>:8080` (tự động đổi port nếu bị trùng).
    - Bạn chỉ cần dùng điện thoại iPhone đang kết nối WiFi nhà, bấm vào link xác minh 1 giây là server tự động tiếp tục cày nhiệm vụ!
-6. **🔄 Tự Động Kiểm Tra Bản Cập Nhật**:
+10. **🔄 Tự Động Kiểm Tra Bản Cập Nhật**:
    - Kết nối về GitHub `dvapu/discord-quest-phantom` khi khởi động để báo khi có bản phát hành mới.
 
 ---

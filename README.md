@@ -35,9 +35,9 @@
                 ┌───────────────────────────────────┼───────────────────────────────────┐
                 ▼                                   ▼                                   ▼
     [1. REGIONAL EGRESS SWEEP]          [2. PARALLEL RUNNER (DEFAULT)]        [3. BADGE & CAPTCHA PORTAL]
-  - Local IP first, then proxies     - Concurrently runs 2-5 quests       - Auto LAN IP & port detection
+  - Local IP first, then proxies     - Concurrently runs video/API quests       - Auto LAN IP & port detection
   - Unions quests across regions     - Staggered API request jitter       - 🎖️ Instant HypeSquad Badge Claim
-  - Reports every failed region      - 5 games in 15 mins (not 75 mins!)  - Zero SSH/headless lockouts
+  - Reports every failed region      - Video quests parallel, one game at a time - Zero SSH/headless lockouts
                 │                                   │                                   │
                 └───────────────────────────────────┴───────────────────────────────────┘
                                                     │
@@ -47,8 +47,8 @@
                 ▼                                                                       ▼
    [ENGINE 1: AUTONOMOUS API RUNNER]                                       [ENGINE 2: OS PROCESS SPOOFER]
   - 100% Headless (Windows, Linux, Armbian, VPS)                        - For users running Discord Desktop
-  - NO browser or Discord app required                                  - Concurrently spawns dummy game stubs
-  - Auto video playback & synthetic stream frames                       - Discord Desktop broadcasts Gateway status
+  - NO browser or Discord app required                                  - Spawns one dummy game stub at a time
+  - Auto video playback & synthetic stream frames                       - Discord Desktop reports the game locally
 ```
 
 ---
@@ -71,30 +71,30 @@
    - **Instant HypeSquad Claiming**: Directly interacts with official Discord API (`POST /api/v9/hypesquad/online`) to enroll or switch your HypeSquad House (`bravery` / `1`, `brilliance` / `2`, `balance` / `3`, or `leave` / `0`).
    - **Auto-Maximization by Default**: When running the tool, if your account has no HypeSquad badge, it automatically claims the House of Bravery badge so you immediately maximize your account badges along with quest rewards!
    - **End-of-Session Summary**: Prints a clean Profile Badges & Quests summary at the end of each pass.
-2. **🩹 Windows launcher actually launches (`run.cmd` / `setup_token.cmd`)**:
+5. **🩹 Windows launcher actually launches (`run.cmd` / `setup_token.cmd`)**:
    - Fixed the "console window flashes and disappears" bug caused by Unix (LF) line endings in Windows batch files.
    - `.gitattributes` now pins these files to literal CRLF bytes, and CI **fails the build** if a bare LF ever sneaks back in, so the bug cannot return.
    - The launched program no longer needs Go or Python: the prebuilt `.exe` ships in the ZIP and `run.cmd` finds it automatically.
    - Errors now stay on screen with a clear reason plus the exit code.
-2. **🧹 No more console flood from expired quests**:
+6. **🧹 No more console flood from expired quests**:
    - Quests that ended while you weren't using the tool are detected (`HTTP 404 / 410 / 403 / 422`) and dropped after **one** line instead of being retried forever.
    - Progress loops now stop after 5 consecutive errors or 3 minutes without accepted progress, using bounded backoff.
    - The quest table collapses expired campaigns into a single summary line (use `-debug` to see them all).
    - Daemon mode no longer reprints an identical inventory every poll cycle.
-3. **🌍 Regional Egress Sweep + never-miss discovery (`-region`, `-proxy`, `-proxy-file`)** — *corrected mechanism*:
+7. **🌍 Regional Egress Sweep + never-miss discovery (`-region`, `-proxy`, `-proxy-file`)** — *corrected mechanism*:
    - Quest eligibility is decided by the **request IP** (the country Discord sees), not by `client_locale` / `system_locale`. We measured this on a live account: 22 different locale headers returned the exact same 61-quest set, while VPN users visibly gain other countries' quests. Locale headers only localise text.
    - Phantom sweeps the **local egress first**, then every regional proxy you configure, unions the responses by quest ID, and routes each quest's enroll/heartbeat/video calls back through the proxy that discovered it (its sealed traffic metadata belongs to that fetch).
    - Every target is reported as `OK`/`ERR` with quest/excluded counts and latency. Failed regions get a recovery retry, and anything still failing is printed instead of being silently skipped.
    - Requests are serialized with `Retry-After`-aware pacing: Discord allows only a 2–3 request burst on `/quests/@me` before answering `429`. A last-known-good snapshot bridges transient outages, and `quest_access_suspended_until` / `quest_enrollment_blocked_until` stop the tool before it earns a penalty.
    - Legacy `-locale-sweep trio|all` remains available for experiments, off by default, and explicitly does **not** change eligibility.
-4. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
-   - Complete 2–5 quests concurrently in parallel lanes with staggered request jitter.
-   - Finish 5 games in **15 minutes** instead of 75 minutes!
-5. **📱 Local Captcha Web Portal (`-portal` & `-portal-port`)**:
+8. **⚡ Parallel / Concurrent Quest Execution (`-concurrency 5`)**:
+   - Runs up to 5 **video / API quests** at the same time, in parallel lanes with staggered, jittered request starts.
+   - Desktop-game quests are the exception: they always run strictly one at a time, because a real client only reports one game.
+9. **📱 Local Captcha Web Portal (`-portal` & `-portal-port`)**:
    - Running headless on a 24/7 Linux server/Armbian (e.g. `192.168.1.200`) via SSH?
    - When Discord challenges an enrollment, Phantom spins up a local web portal on port `8080` (with auto port-conflict resolution).
    - Just tap the local LAN link on your phone (same WiFi) to solve the captcha in 3 seconds, and the headless daemon instantly resumes!
-6. **🔄 Auto-Update Notification**:
+10. **🔄 Auto-Update Notification**:
    - Built-in updater queries GitHub releases at startup and alerts you when a new build is released.
 
 ---
@@ -184,6 +184,8 @@ Then enable and start the service:
 systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 ```
 > Running regional proxies? Append `-proxy-file /opt/discord-quest-phantom/proxies.txt` to `ExecStart` and place the proxy list next to the binary. Without proxies the daemon simply sweeps the server's own egress.
+>
+> A headless box has no local Discord client, so desktop quests run through REST heartbeats — that is the only option there. The presence guard cannot see what you play on another PC, so do not share one token between the daemon and a machine you actively game on.
 
 ---
 
@@ -193,6 +195,9 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 |---|---|---|
 | `-max-badge` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
 | `-hypesquad` | `""` | HypeSquad House badge: `bravery` (1), `brilliance` (2), `balance` (3), or `leave` (0) |
+| `-auto-accept` / `-auto-enroll` | `true` | Auto-enroll in eligible quests (`false` to only discover and display them) |
+| `-quest-id` | `""` | Run only the quest with this ID |
+| `-duration` | `0` | Cap the spoofing time per quest (`15m`, `30s`; `0` = run until the requirement is met) |
 | `-region` | `all` | Sweep scope: `all` (local egress + every configured proxy), `direct`, `full` (also every locale), a comma list of proxy/country codes (`us,br,jp`) or Discord locales (`ja`) |
 | `-proxy` | `""` | Regional egress entries: `CODE=URL` pairs separated by commas (`us=socks5://…,br=http://…`) |
 | `-proxy-file` | `""` | File with one `CODE=proxyURL` per line (`#` comments allowed) |
@@ -204,7 +209,7 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-poll` | `60s` | Polling interval between quest checks when running in daemon mode (e.g. `15m`, `30m`) |
 | `-portal` | `true` | Enable local LAN captcha web portal (`false` for completely silent headless background run) |
 | `-portal-port` | `8080` | Port for captcha web portal (auto-increments if port is busy) |
-| `-spoofer` | `false` | Enable Win32 OS process emulation (requires Discord Desktop running) |
+| `-spoofer` | `false` | Use local Win32 process emulation for desktop quests (requires Discord Desktop running; desktop quests run strictly one at a time) |
 | `-lang` | `auto` | Language override: `auto`, `en`, `vi` |
 | `-dry-run` | `false` | Discover and display active quests without taking any actions |
 | `-token` | `""` | Provide Discord token directly via command-line argument |
@@ -212,7 +217,7 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 | `-profile-store` | `true` | Keep one stable, DPAPI-sealed device profile per account under the cache directory |
 | `-presence-guard` | `true` | Pause desktop-game spoofing while you are actually playing another game or using a full-screen app |
 | `-jitter` | `0.15` | Relative jitter applied to every delay (bell-shaped, ±15% by default; `0` disables it) |
-| `-cache-dir` | per-user | Custom cache directory for stubs, the quest snapshot, profiles and the token vault (default `%LOCALAPPDATA%\DiscordQuestCompleter`) |
+| `-cache-dir` | per-user | Custom cache directory for stubs, the quest snapshot, profiles and the token vault (Windows: `%LOCALAPPDATA%\DiscordQuestCompleter`, Linux/macOS: `~/.cache/discord-quest-completer`) |
 | `-debug` | `false` | Verbose output, including expired quests in the inventory table |
 | `-keep-open` | `true` | Wait for Enter before exiting (prevents the window from closing) |
 
@@ -269,6 +274,10 @@ What the sweep guarantees:
 | Fewer quests than a friend in another country; region-locked quests never appear | Quest eligibility follows the request IP, not the locale. Locale sweeps cannot change that. | Add a proxy in the target region via `-proxy` / `-proxy-file`; Phantom unions the local and proxy views. |
 | `HTTP 429: rate limited` lines during the sweep | Discord allows only a tiny burst on `/quests/@me`. The engine paces and retries automatically. | Keep the default pacing or raise `-sweep-pacing`; sweep fewer proxies or poll less often. |
 | `QUEST ACCESS SUSPENDED` / enrollment blocked message | Discord temporarily locked quests on the account (automation enforcement). | Wait until the printed timestamp. The tool deliberately stops instead of retrying into a longer penalty. |
+| `[~] Holding / Pausing <game>` lines | The presence guard paused the quest: a full-screen app, another quest game, or Discord not running was detected. | Working as designed — it resumes when the machine is free. Pass `-presence-guard=false` to disable the guard. |
+| `[!] Discord desktop is not running` in `-spoofer` mode | Desktop quests only advance when the local client can see the game. | Start Discord and re-run, or use the default REST mode, which works without a local client. |
+| `profile was created on a different machine` warning | The account profile's device tag does not match this host. | Delete the account's file under `<cache>/profiles/` to rebuild it for this machine. |
+| `[~] profile is not encrypted at rest on this platform` | Windows-only DPAPI is unavailable on Linux/macOS. | Expected there; the profile files still use `0600` permissions. |
 
 ---
 
