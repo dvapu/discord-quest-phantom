@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (e.g. v1.1.3)'
+        description: 'Release tag (e.g. v1.2.0)'
         required: true
-        default: 'v1.1.3'
+        default: 'v1.2.0'
 
 permissions:
   contents: write
@@ -137,12 +137,16 @@ jobs:
 
           {
             printf '## Discord Quest Phantom %s\n\n' "$TAG_NAME"
-            printf '### Fixed\n'
-            printf -- '- **Windows launcher no longer crashes on start** - `run.cmd` and `setup_token.cmd` now ship with correct CRLF line endings (enforced by `.gitattributes` plus a CI guard), so cmd.exe no longer chops commands like `echo` / `if exist` and the window stays open.\n'
-            printf -- '- **No Go toolchain required** - the prebuilt `discord-quest-phantom.exe` and both `.cmd` launchers are bundled in the Windows ZIP. Download, unzip, double-click.\n'
-            printf -- '- **Expired quests no longer flood the console** - quests that ended while the tool was idle are filtered out, retried with bounded backoff, and summarised in one compact line instead of endless error spam.\n'
-            printf -- '- **Linux ARM64 archive now really ships an aarch64 binary** - previously it was cross-compiled as amd64 by mistake.\n'
-            printf -- '- Token setup no longer loses pasted input (UTF-8 codepage is only applied when launching the app).\n'
+            printf '### Anti-profiling and consistency\n'
+            printf -- '- **One stable device identity per account** - OS build, Discord client / Electron / Chromium / native build, system locale and timezone come from one source and are pinned per account instead of a shared hardcoded fingerprint. Linux hosts claim x64 so `os_arch` matches the user agent.\n'
+            printf -- '- **`system_locale` stays the OS locale** while `client_locale` / `X-Discord-Locale` follow the account and the sweep target.\n'
+            printf -- '- **Per-account profile store and DPAPI token vault** on Windows; a plaintext `.token` is sealed once and left in place for you to delete.\n'
+            printf -- '- **Presence guard (`-presence-guard`, default on)** - desktop quests run strictly one at a time, pause while you play another game or a full-screen app is active, ride your really-running game instead of starting a second copy, and hold a named mutex while a stub is visible. REST desktop heartbeats pause during full-screen activity when Discord runs locally.\n'
+            printf -- '- **Jittered pacing (`-jitter`, default 0.15)** - bell-shaped delay jitter on heartbeats, retries, enrollment spacing and poll intervals.\n'
+            printf '\n### Improvements\n'
+            printf -- '- Spoofer stub uses an install-shaped path, hard links instead of copying, per-engine window classes, reserved working set and idle CPU noise.\n'
+            printf -- '- Enrollment spacing between auto-enrolls is jittered.\n'
+            printf -- '- New flags: `-fingerprint auto|legacy`, `-profile-store`, `-presence-guard`, `-jitter`, `-cache-dir`. See `docs/ANTI_PROFILING.md`.\n'
             printf '\n### Downloads\n'
             printf -- '- Windows x64: `discord-quest-phantom-windows-amd64.zip`\n'
             printf -- '- Linux x64: `discord-quest-phantom-linux-amd64.tar.gz`\n'

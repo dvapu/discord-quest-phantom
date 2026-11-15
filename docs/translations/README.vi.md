@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.3
+# 👻 Discord Quest Phantom v1.2.0
 ### *Công cụ tự động hoàn thành Discord Quest & Tối ưu Huy hiệu đa nền tảng cho Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -26,7 +26,7 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.3           │
+                        │              DISCORD QUEST PHANTOM 👻 v1.2.0           │
                         │   Quét Đa Vùng · Chạy Song Song · Tối Ưu Huy Hiệu      │
                         └───────────────────────────┬────────────────────────────┘
                                                     │
@@ -53,7 +53,7 @@
 
 ---
 
-## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.1.3
+## 🚀 Các Tính Năng Đột Phá Mới Trong Bản v1.2.0
 
 1. **🎖️ Tối Ưu Huy Hiệu Profile & Tích Hợp HypeSquad (`-max-badge`, `-hypesquad`)**:
    - **Tự động nhận diện & hiển thị huy hiệu**: Đọc bitmask public_flags của tài khoản và hiển thị đầy đủ huy hiệu (`[🛡️ HypeSquad Bravery]`, `[🛠️ Active Developer]`, `[🚀 Nitro]`, v.v.).
@@ -132,7 +132,7 @@ Chạy một lệnh duy nhất sau trên terminal Linux để tải bản build 
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.3/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.2.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "DAN_TOKEN_CUA_BAN_VAO_DAY" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &

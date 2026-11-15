@@ -1,6 +1,6 @@
 <div align="center">
 
-# 👻 Discord Quest Phantom v1.1.3
+# 👻 Discord Quest Phantom v1.2.0
 ### *Autonomous Cross-Platform Quest Completer & Badge Maximizer for Windows & Linux (x64 / ARM64)*
 
 [![GitHub Release](https://img.shields.io/github/v/release/dvapu/discord-quest-phantom?color=7289da&style=flat-square)](https://github.com/dvapu/discord-quest-phantom/releases)
@@ -26,7 +26,7 @@
 
 ```
                         ┌────────────────────────────────────────────────────────┐
-                        │              DISCORD QUEST PHANTOM 👻 v1.1.3           │
+                        │              DISCORD QUEST PHANTOM 👻 v1.2.0           │
                         │   Multi-Region Sweep · Parallel Engine · Badge Maximizer│
                         └───────────────────────────┬────────────────────────────┘
                                                     │
@@ -53,9 +53,20 @@
 
 ---
 
-## 🚀 Key Highlights & New Capabilities in v1.1.3
+## 🚀 Key Highlights & New Capabilities in v1.2.0
 
-1. **🎖️ Discord Badge Maximizer & HypeSquad Integration (`-max-badge`, `-hypesquad`)**:
+1. **🪪 Consistent device identity per account (`-fingerprint`, `-profile-store`)**:
+   - OS build, Discord client / Electron / Chromium / native build, system locale and timezone are derived from one source and pinned to the account, instead of every installation sharing one hardcoded fingerprint.
+   - `system_locale` stays the real OS locale; `client_locale` / `X-Discord-Locale` follow the account and sweep target.
+   - Profile store and token vault are sealed with Windows DPAPI; a plaintext `.token` is migrated once and left in place for you to delete.
+   - See [`docs/ANTI_PROFILING.md`](docs/ANTI_PROFILING.md) for the design and remaining limits.
+2. **🛡️ Presence guard (`-presence-guard`, default on)**:
+   - Desktop quests run strictly one at a time, so the client never claims several games at once.
+   - The stub pauses while you play another quest game or a full-screen app is active, and if the quest's own game is already running it lets your real session count instead of starting a second copy.
+   - A named mutex keeps two tool instances on one machine from showing two games simultaneously.
+   - REST desktop heartbeats pause during full-screen activity when Discord runs locally.
+3. **⏱️ Jittered pacing (`-jitter`, default 0.15)**: bell-shaped delay jitter on heartbeats, retries, enrollment spacing and poll intervals.
+4. **🎖️ Discord Badge Maximizer & HypeSquad Integration (`-max-badge`, `-hypesquad`)**:
    - **Auto-Detect & Display**: Inspects user profile flags and displays active Discord badges (`[🛡️ HypeSquad Bravery]`, `[🛠️ Active Developer]`, `[🚀 Nitro]`, etc.).
    - **Instant HypeSquad Claiming**: Directly interacts with official Discord API (`POST /api/v9/hypesquad/online`) to enroll or switch your HypeSquad House (`bravery` / `1`, `brilliance` / `2`, `balance` / `3`, or `leave` / `0`).
    - **Auto-Maximization by Default**: When running the tool, if your account has no HypeSquad badge, it automatically claims the House of Bravery badge so you immediately maximize your account badges along with quest rewards!
@@ -144,7 +155,7 @@ Run this single command to download the standalone binary and start 24/7 backgro
 ```bash
 mkdir -p ~/discord-quest && cd ~/discord-quest && \
 ARCH=$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/') && \
-curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.1.3/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
+curl -sSL "https://github.com/dvapu/discord-quest-phantom/releases/download/v1.2.0/discord-quest-phantom-linux-${ARCH}.tar.gz" | tar -xz && \
 chmod +x discord-quest-phantom && \
 echo "YOUR_DISCORD_TOKEN_HERE" > .token && \
 nohup ./discord-quest-phantom -daemon -poll 15m -portal=false > quest.log 2>&1 &

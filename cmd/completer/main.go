@@ -28,7 +28,7 @@ import (
 )
 
 // Version is injected during compilation via -ldflags="-X main.Version=..."
-var Version = "1.1.3"
+var Version = "1.2.0"
 
 // lastInventorySignature remembers the previous scan fingerprint so daemon
 // mode can stay silent while nothing changes.

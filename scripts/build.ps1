@@ -13,7 +13,7 @@
 #>
 $ErrorActionPreference = "Stop"
 
-$VERSION = "1.1.3"
+$VERSION = "1.2.0"
 $PROJECT_ROOT = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $PROJECT_ROOT
 $DIST_DIR = Join-Path $PROJECT_ROOT "dist"
