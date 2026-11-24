@@ -111,6 +111,13 @@ Discord Quests come in multiple task structures. Discord Quest Phantom categoriz
 | **4. 📱 Mobile Video** | `WATCH_VIDEO_ON_MOBILE` | Targeted at mobile users. The backend API is identical: **Phantom finishes it without needing any mobile device**! | ✅ 100% Automated |
 | **5. 🏆 In-Game Achievement** | `ACHIEVEMENT_IN_GAME` / `ACHIEVEMENT_IN_ACTIVITY` | Missions like *VALORANT Aces* require real game servers (Riot/EA) to send webhooks to Discord. **Client tools cannot fake in-game kills**; Phantom automatically detects and cleanly skips these. | ⚠️ Skipped (Play manually) |
 
+### Quest API compatibility (current Discord schema)
+
+* Phantom reads the current **`task_config_v2`** task map. The legacy `task_config` object is gone from Discord's payloads, so tools that still parse it find no tasks at all.
+* Enrollment sends back the **`traffic_metadata_sealed`** blob returned by `GET /quests/@me`. A bare `{}` enroll payload is rejected, and the sealed blob is bound to the IP that fetched it — this is why each quest's calls must go back out through the same egress.
+* Quest payloads now also carry **orb rewards** (`orb_quantity` / `orb_quantity_claimed` per quest) alongside the classic reward codes. Those values are per-quest reward amounts, not an account-wide orb balance.
+* All core endpoints keep their paths: `GET /quests/@me`, `POST /quests/{id}/enroll`, `POST /quests/{id}/video-progress`, `POST /quests/{id}/heartbeat`.
+
 ---
 
 ## 🔑 1. How to Retrieve Your Discord Token (F12 DevTools)
@@ -193,29 +200,25 @@ systemctl daemon-reload && systemctl enable --now discord-quest-phantom
 
 | Flag | Default | Description |
 |---|---|---|
-| `-max-badge` / `-badges` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
-| `-hypesquad` | `""` | HypeSquad House badge: `bravery` (1), `brilliance` (2), `balance` (3), or `leave` (0) |
+| `-token` | `""` | Provide Discord token directly via command-line argument (otherwise `.token`, the DPAPI vault, or the interactive prompt) |
+| `-dry-run` | `false` | Discover and display active quests without enrolling or taking any action (read-only) |
 | `-auto-accept` / `-auto-enroll` | `true` | Auto-enroll in eligible quests (`false` to only discover and display them) |
 | `-quest-id` | `""` | Run only the quest with this ID |
 | `-duration` | `0` | Cap the spoofing time per quest (`15m`, `30s`; `0` = run until the requirement is met) |
+| `-concurrency` | `5` | Maximum concurrent video/API quests (desktop-game quests always run one at a time) |
+| `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |
+| `-poll` | `60s` | Polling interval between quest checks when running in daemon mode (e.g. `15m`, `30m`) |
 | `-region` | `all` | Sweep scope: `all` (local egress + every configured proxy), `direct`, `full` (also every locale), a comma list of proxy/country codes (`us,br,jp`) or Discord locales (`ja`) |
 | `-proxy` | `""` | Regional egress entries: `CODE=URL` pairs separated by commas (`us=socks5://…,br=http://…`) |
 | `-proxy-file` | `""` | File with one `CODE=proxyURL` per line (`#` comments allowed) |
 | `-locale-sweep` | `off` | Locale header sweep for experiments: `off`, `trio`, `all` (does not change quest eligibility) |
 | `-sweep-pacing` | `3s` | Minimum delay between quest discovery requests; auto-raised when Discord answers HTTP 429 |
 | `-sweep-attempts` | `3` | Attempts per sweep target before it is reported as failed |
-| `-concurrency` | `5` | Maximum concurrent video/API quests (desktop-game quests always run one at a time) |
-| `-daemon` | `false` | Run continuously as background daemon/service, re-checking quests periodically |
-| `-auto-accept` / `-auto-enroll` | `true` | Auto-enroll in eligible quests (`false` to only discover and display them) |
-| `-poll` | `60s` | Polling interval between quest checks when running in daemon mode (e.g. `15m`, `30m`) |
+| `-max-badge` / `-badges` | `true` | Maximize Discord badges (auto-enroll in HypeSquad House if unassigned) |
+| `-hypesquad` | `""` | HypeSquad House badge: `bravery` (1), `brilliance` (2), `balance` (3), or `leave` (0) |
 | `-portal` | `true` | Enable local LAN captcha web portal (`false` for completely silent headless background run) |
 | `-portal-port` | `8080` | Port for captcha web portal (auto-increments if port is busy) |
 | `-spoofer` | `false` | Use local Win32 process emulation for desktop quests (requires Discord Desktop running; desktop quests run strictly one at a time) |
-| `-lang` | `auto` | Language override: `auto`, `en`, `vi` |
-| `-dry-run` | `false` | Discover and display active quests without taking any actions |
-| `-token` | `""` | Provide Discord token directly via command-line argument |
-| `-quest-id` | `""` | Run only the quest with this ID |
-| `-duration` | `0` | Cap the spoofing time per quest (`15m`, `30s`; `0` = run until the requirement is met) |
 | `-fingerprint` | `auto` | Device identity source: `auto` (derive OS build, Discord client build, locale and timezone from this machine) or `legacy` (fixed built-in values) |
 | `-profile-store` | `true` | Keep one stable, DPAPI-sealed device profile per account under the cache directory |
 | `-presence-guard` | `true` | Pause desktop-game spoofing while you are actually playing another game or using a full-screen app |
